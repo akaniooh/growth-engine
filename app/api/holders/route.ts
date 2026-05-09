@@ -154,6 +154,13 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[holders] failed:', msg)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    const isOverload = msg.toLowerCase().includes('overload') || msg.toLowerCase().includes('rate limit')
+    return NextResponse.json(
+      {
+        error:     isOverload ? 'Helius RPC is busy — retrying automatically…' : msg,
+        retryable: isOverload,
+      },
+      { status: isOverload ? 503 : 500 }
+    )
   }
 }

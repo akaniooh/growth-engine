@@ -90,6 +90,16 @@ export function WalletTable({ mint, symbol, totalHolders }: WalletTableProps) {
       if (mintRef.current !== currentMint) return
       const json = await res.json()
       if (!res.ok || json.error) {
+        // Auto-retry on overload (503) after a short delay
+        if (res.status === 503 && json.retryable) {
+          console.log('[WalletTable] RPC overloaded, auto-retrying in 2s…')
+          await new Promise((r) => setTimeout(r, 2000))
+          // Recurse — but only if still same mint
+          if (mintRef.current === currentMint) {
+            fetchData(f, currentMint)
+          }
+          return
+        }
         setState((p) => ({ ...p, error: json.error ?? 'Failed to load', loaded: true }))
         return
       }
@@ -218,7 +228,7 @@ export function WalletTable({ mint, symbol, totalHolders }: WalletTableProps) {
         <div className="px-5 py-8 text-center">
           <p className="text-sm text-negative">{error}</p>
           <button
-            onClick={() => fetchData(filter, mint)}
+            onClick={() => { setState((p) => ({ ...p, error: '', loaded: false })); fetchData(filter, mint) }}
             className="mt-3 rounded border border-surface-border bg-surface-overlay px-4 py-2 font-mono text-[11px] text-ink-secondary hover:text-ink"
           >
             Retry

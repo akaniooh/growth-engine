@@ -29,6 +29,32 @@ async function rpcCall(apiKey: string, method: string, params: unknown[]) {
   return json.result
 }
 
+
+/** Retry an async operation up to `attempts` times with exponential backoff */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  attempts = 3,
+  baseDelayMs = 600
+): Promise<T> {
+  let lastError: Error = new Error('Unknown error')
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn()
+    } catch (e) {
+      lastError = e as Error
+      const isOverload = lastError.message.toLowerCase().includes('overload') ||
+                         lastError.message.toLowerCase().includes('overloaded') ||
+                         lastError.message.toLowerCase().includes('rate limit') ||
+                         lastError.message.toLowerCase().includes('too many')
+      if (!isOverload || i === attempts - 1) throw lastError
+      const delay = baseDelayMs * Math.pow(2, i)
+      console.log(`[helius] retry ${i + 1}/${attempts} after ${delay}ms: ${lastError.message.slice(0, 80)}`)
+      await new Promise((r) => setTimeout(r, delay))
+    }
+  }
+  throw lastError
+}
+
 export async function getTokenMetadata(
   mint: string,
   apiKey: string
@@ -123,10 +149,11 @@ export async function getTokenHolders(
 
   // Step 1: get top 20 largest token accounts
   // NOTE: commitment must be an object, not a plain string
-  const largest = await rpcCall(apiKey, 'getTokenLargestAccounts', [
-    mint,
-    { commitment: 'confirmed' },
-  ])
+  const largest = await withRetry(() =>
+    rpcCall(apiKey, 'getTokenLargestAccounts', [mint, { commitment: 'confirmed' }]),
+    4,   // up to 4 attempts
+    800  // 800ms, 1.6s, 3.2s, 6.4s backoff
+  )
 
   // Normalize — some RPC nodes return uiAmount as null when frozen/delegated
   // Fall back to uiAmountString in that case
@@ -152,10 +179,10 @@ export async function getTokenHolders(
   const settled = await Promise.allSettled(
     accounts.slice(0, 20).map(async (acct: { address: string; uiAmount: number }) => {
       try {
-        const info   = await rpcCall(apiKey, 'getAccountInfo', [
-          acct.address,
-          { encoding: 'jsonParsed' },
-        ])
+        const info   = await withRetry(() =>
+          rpcCall(apiKey, 'getAccountInfo', [acct.address, { encoding: 'jsonParsed' }]),
+          3, 400
+        )
         const parsed = info?.value?.data?.parsed?.info
         const owner: string =
           parsed?.owner    ??   // wallet that owns this token account
