@@ -140,11 +140,18 @@ export async function POST(req: NextRequest) {
     const processed = await buildHolderList(mint, heliusKey)
     const filtered  = filter === 'all' ? processed : processed.filter((h) => h.type === filter)
 
-    const total    = processed.length || 1
+    const totalCount = processed.length || 1
     const whaleCt  = processed.filter((h) => h.type === 'whale').length
     const activeCt = processed.filter((h) => h.type === 'active').length
     const newCt    = processed.filter((h) => h.type === 'new').length
     const dormCt   = processed.filter((h) => h.type === 'dormant').length
+
+    // Supply-based percentages: how much of total supply each segment holds
+    // This is more meaningful than count ratios from just top 20 wallets
+    const totalPct    = processed.reduce((s, h) => s + h.pct, 0) || 1
+    const whalePctSup = Math.round(processed.filter((h) => h.type === 'whale').reduce((s,h) => s+h.pct, 0))
+    const activePctSup = Math.round(processed.filter((h) => h.type === 'active').reduce((s,h) => s+h.pct, 0))
+    const newPctSup   = Math.round(processed.filter((h) => h.type === 'new').reduce((s,h) => s+h.pct, 0))
 
     return NextResponse.json({
       wallets: filtered.map((h) => toWallet(h, symbol)),
@@ -156,12 +163,17 @@ export async function POST(req: NextRequest) {
         new:     newCt,
         dormant: dormCt,
       },
-      // Real percentages for AI insights
+      // Supply-based pcts: what % of circulating supply each segment controls
       pcts: {
-        whale:   Math.round(whaleCt   / total * 100),
-        active:  Math.round(activeCt  / total * 100),
-        new:     Math.round(newCt     / total * 100),
-        dormant: Math.round(dormCt    / total * 100),
+        whale:   whalePctSup,
+        active:  activePctSup,
+        new:     newPctSup,
+        dormant: Math.max(0, 100 - whalePctSup - activePctSup - newPctSup),
+        // Also pass count-based for reference
+        whaleCount: whaleCt,
+        activeCount: activeCt,
+        newCount: newCt,
+        totalSampled: totalCount,
       },
     })
   } catch (err: unknown) {

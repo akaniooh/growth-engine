@@ -47,15 +47,20 @@ export async function POST(req: NextRequest) {
 
   const insights = buildInsights({
     symbol,
-    whalePct:    pcts.whale,
-    activePct:   pcts.active,
-    newPct:      pcts.new,
-    dormantPct:  pcts.dormant,
+    whalePct:      pcts.whale,
+    activePct:     pcts.active,
+    newPct:        pcts.new,
+    dormantPct:    pcts.dormant,
     priceUp,
     priceChange,
     volumeUp,
     volumeChange,
     heatPeak,
+    // Enriched count data from top-20 holder analysis
+    whaleCount:    pcts.whaleCount,
+    activeCount:   pcts.activeCount,
+    newCount:      pcts.newCount,
+    totalSampled:  pcts.totalSampled,
   })
 
   const actions = buildActions({

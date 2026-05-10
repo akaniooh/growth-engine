@@ -52,7 +52,7 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
       const res  = await fetch('/api/insights', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ mint: currentMint, pcts }),
+        body:    JSON.stringify({ mint: currentMint, pcts, enriched: true }),
       })
       if (!res.ok) return
       const json = await res.json()
@@ -165,7 +165,7 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
         onSegmentsLoaded={handleSegmentsLoaded}
       />
 
-      <ActivityHeatmap seed={seed} peak={data.heatPeak} />
+      <ActivityHeatmap mint={data.mint} symbol={data.symbol} />
 
       <div className="border-t border-surface-border" />
 
