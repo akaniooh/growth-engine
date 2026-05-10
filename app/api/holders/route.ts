@@ -140,15 +140,28 @@ export async function POST(req: NextRequest) {
     const processed = await buildHolderList(mint, heliusKey)
     const filtered  = filter === 'all' ? processed : processed.filter((h) => h.type === filter)
 
+    const total    = processed.length || 1
+    const whaleCt  = processed.filter((h) => h.type === 'whale').length
+    const activeCt = processed.filter((h) => h.type === 'active').length
+    const newCt    = processed.filter((h) => h.type === 'new').length
+    const dormCt   = processed.filter((h) => h.type === 'dormant').length
+
     return NextResponse.json({
       wallets: filtered.map((h) => toWallet(h, symbol)),
       total:   filtered.length,
       counts: {
         all:     processed.length,
-        whale:   processed.filter((h) => h.type === 'whale').length,
-        active:  processed.filter((h) => h.type === 'active').length,
-        new:     processed.filter((h) => h.type === 'new').length,
-        dormant: processed.filter((h) => h.type === 'dormant').length,
+        whale:   whaleCt,
+        active:  activeCt,
+        new:     newCt,
+        dormant: dormCt,
+      },
+      // Real percentages for AI insights
+      pcts: {
+        whale:   Math.round(whaleCt   / total * 100),
+        active:  Math.round(activeCt  / total * 100),
+        new:     Math.round(newCt     / total * 100),
+        dormant: Math.round(dormCt    / total * 100),
       },
     })
   } catch (err: unknown) {

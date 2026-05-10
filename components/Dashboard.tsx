@@ -18,8 +18,9 @@ interface DashboardProps {
 }
 
 export function Dashboard({ data: initialData, seed }: DashboardProps) {
-  const [data, setData]         = useState<TokenData>(initialData)
-  const [polling, setPolling]   = useState(false)
+  const [data, setData]           = useState<TokenData>(initialData)
+  const [polling, setPolling]     = useState(false)
+  const [realPcts, setRealPcts]   = useState<{ whale: number; active: number; new: number; dormant: number } | null>(null)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [secondsAgo, setSecondsAgo]   = useState(0)
   const mintRef    = useRef(initialData.mint)
@@ -41,6 +42,35 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
     const id = setInterval(() => setSecondsAgo((s) => s + 1), 1000)
     return () => clearInterval(id)
   }, [lastUpdated])
+
+  // Called when WalletTable loads real holder segment data
+  // Re-fetch insights from server with real segment percentages
+  const handleSegmentsLoaded = useCallback(async (pcts: { whale: number; active: number; new: number; dormant: number }) => {
+    setRealPcts(pcts)
+    const currentMint = mintRef.current
+    try {
+      const res  = await fetch('/api/insights', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ mint: currentMint, pcts }),
+      })
+      if (!res.ok) return
+      const json = await res.json()
+      if (json.insights && json.actions && mintRef.current === currentMint) {
+        setData((prev) => ({
+          ...prev,
+          distribution: [
+            { label: 'Whales',  pct: pcts.whale,   color: '#4f6ef7' },
+            { label: 'Active',  pct: pcts.active,  color: '#f0f0f4' },
+            { label: 'New',     pct: pcts.new,     color: '#8a8a9a' },
+            { label: 'Dormant', pct: pcts.dormant, color: '#2a2a30' },
+          ],
+          insights: json.insights,
+          actions:  json.actions,
+        }))
+      }
+    } catch { /* silent */ }
+  }, [])
 
   const refresh = useCallback(async (silent = false) => {
     const currentMint = mintRef.current
@@ -132,6 +162,7 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
         mint={data.mint}
         symbol={data.symbol}
         totalHolders={data.holders}
+        onSegmentsLoaded={handleSegmentsLoaded}
       />
 
       <ActivityHeatmap seed={seed} peak={data.heatPeak} />
