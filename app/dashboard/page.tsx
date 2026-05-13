@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { TokenData } from '@/lib/data'
 import { SearchBar } from '@/components/SearchBar'
 import { Dashboard } from '@/components/Dashboard'
@@ -11,8 +11,34 @@ export default function Home() {
   const [seed, setSeed] = useState(1)
   const dashRef = useRef<HTMLDivElement>(null)
 
+
+  // Restore last analyzed token on hard refresh
+  useEffect(() => {
+    const run = async () => {
+      const params = new URLSearchParams(window.location.search)
+      const token = params.get('token') || window.sessionStorage.getItem('last_token_query')
+      if (!token) return
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: token }),
+        })
+        const json = await res.json()
+        if (res.ok && json.data) {
+          setData(json.data as TokenData)
+        }
+      } catch { /* silent restore */ }
+    }
+    run()
+  }, [])
+
   const handleResult = (d: TokenData) => {
     setData(d)
+    window.sessionStorage.setItem('last_token_query', d.mint)
+    const url = new URL(window.location.href)
+    url.searchParams.set('token', d.mint)
+    window.history.replaceState({}, '', url.toString())
     setSeed((s) => s + 1)
     setTimeout(() => {
       dashRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
