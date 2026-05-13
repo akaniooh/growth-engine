@@ -13,10 +13,14 @@ export default function Home() {
 
 
   // Restore last analyzed token on hard refresh
+  // URL param (?token=) is the primary source; localStorage is the fallback
   useEffect(() => {
     const run = async () => {
       const params = new URLSearchParams(window.location.search)
-      const token = params.get('token') || window.sessionStorage.getItem('last_token_query')
+      const token =
+        params.get('token') ||
+        window.localStorage.getItem('last_token_query') ||
+        window.sessionStorage.getItem('last_token_query')
       if (!token) return
       try {
         const res = await fetch('/api/analyze', {
@@ -27,6 +31,10 @@ export default function Home() {
         const json = await res.json()
         if (res.ok && json.data) {
           setData(json.data as TokenData)
+          // Ensure URL param is set so future refreshes also restore correctly
+          const url = new URL(window.location.href)
+          url.searchParams.set('token', (json.data as TokenData).mint)
+          window.history.replaceState({}, '', url.toString())
         }
       } catch { /* silent restore */ }
     }
@@ -36,6 +44,7 @@ export default function Home() {
   const handleResult = (d: TokenData) => {
     setData(d)
     window.sessionStorage.setItem('last_token_query', d.mint)
+    window.localStorage.setItem('last_token_query', d.mint)
     const url = new URL(window.location.href)
     url.searchParams.set('token', d.mint)
     window.history.replaceState({}, '', url.toString())

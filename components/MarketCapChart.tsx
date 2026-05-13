@@ -48,6 +48,14 @@ export function MarketCapChart({ data, current, symbol }: MarketCapChartProps) {
   const change   = firstVal > 0 ? ((lastVal - firstVal) / firstVal) * 100 : 0
   const up       = change >= 0
 
+  // Safe Y-axis domain: if flat or zero, add ±5% padding so Recharts renders the line
+  const domainMin = maxVal > 0 && minVal === maxVal
+    ? minVal * 0.95
+    : minVal > 0 ? minVal * 0.95 : 0
+  const domainMax = maxVal > 0 && minVal === maxVal
+    ? maxVal * 1.05
+    : maxVal > 0 ? maxVal * 1.05 : 1
+
   return (
     <div className="card flex flex-col">
       <div className="flex items-center justify-between border-b border-surface-border px-5 py-4">
@@ -94,7 +102,7 @@ export function MarketCapChart({ data, current, symbol }: MarketCapChartProps) {
                   tickLine={false}
                   tickFormatter={fmtMC}
                   width={52}
-                  domain={[minVal * 0.95, maxVal * 1.05]}
+                  domain={[domainMin, domainMax]}
                 />
                 <Tooltip
                   contentStyle={{
