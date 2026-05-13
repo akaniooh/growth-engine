@@ -107,46 +107,47 @@ export async function POST(req: NextRequest) {
       ? meta.supply
       : (marketCap > 0 && price > 0 ? marketCap / price : 0)
 
-    // Build 7-day market cap series from price history × supply
-    // Ensures real variation rather than a flat line
+        // Build 7-day market cap series from price history.
+    // Prefer relative scaling from closes so MC moves even when supply metadata is imperfect.
     let marketCap7d: number[]
-    if (Array.isArray(ohlcv) && ohlcv.length >= 2 && circulatingSupply > 0) {
-      const points = ohlcv.slice(-7)
-      // Consider any non-identical closes as usable history
-      const prices  = points.map((p) => p.c)
-      const hasVariation = new Set(prices.map((v) => v.toFixed(12))).size > 1
+    const buildScaledSeries = (closes: number[]): number[] | null => {
+      if (!marketCap || marketCap <= 0 || closes.length < 2) return null
+      const lastClose = closes[closes.length - 1]
+      if (!lastClose || lastClose <= 0) return null
+      const varied = new Set(closes.map((v) => v.toFixed(12))).size > 1
+      if (!varied) return null
+      return closes.map((c) => Math.max(0, Math.round(marketCap * (c / lastClose))))
+    }
 
-      if (hasVariation) {
-        marketCap7d = points.map((p) =>
-          Math.max(0, Math.round(p.c * circulatingSupply))
-        )
-        console.log(`[analyze] marketCap7d from OHLCV: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
-      } else {
-        // Retry with hourly candles to derive daily closes when 1D feed is flat
-        try {
-          const ohlcvHourly = birdeyeKey ? await getOHLCV(trimmed, birdeyeKey, 7, '1H').catch(() => []) : []
-          const byDay = new Map<string, number>()
-          for (const p of ohlcvHourly) {
-            const key = new Date(p.unixTime * 1000).toISOString().slice(0, 10)
-            byDay.set(key, p.c)
-          }
-          const dayCloses = Array.from(byDay.values()).slice(-7)
-          const varied = new Set(dayCloses.map((v) => v.toFixed(12))).size > 1
-          if (dayCloses.length >= 2 && varied) {
-            marketCap7d = dayCloses.map((c) => Math.max(0, Math.round(c * circulatingSupply)))
-          } else {
-            console.warn('[analyze] OHLCV prices identical — no real history, using current mc')
-            marketCap7d = Array(7).fill(marketCap)
-          }
-        } catch {
-          marketCap7d = Array(7).fill(marketCap)
-        }
-      }
-    } else if (marketCap > 0) {
-      marketCap7d = Array(7).fill(marketCap)
-      console.warn('[analyze] No OHLCV data — flat mc line')
+    const dailyCloses = Array.isArray(ohlcv) ? ohlcv.slice(-7).map((p) => p.c).filter((v) => v > 0) : []
+    const scaledDaily = buildScaledSeries(dailyCloses)
+
+    if (scaledDaily) {
+      marketCap7d = scaledDaily
+      console.log(`[analyze] marketCap7d from daily closes: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
     } else {
-      marketCap7d = Array(7).fill(0)
+      // Retry with hourly candles to derive day-end closes when daily feed is flat or sparse
+      try {
+        const ohlcvHourly = birdeyeKey ? await getOHLCV(trimmed, birdeyeKey, 7, '1H').catch(() => []) : []
+        const byDay = new Map<string, number>()
+        for (const p of ohlcvHourly) {
+          const key = new Date(p.unixTime * 1000).toISOString().slice(0, 10)
+          byDay.set(key, p.c)
+        }
+        const dayCloses = Array.from(byDay.values()).slice(-7).filter((v) => v > 0)
+        const scaledHourly = buildScaledSeries(dayCloses)
+        if (scaledHourly) {
+          marketCap7d = scaledHourly
+          console.log(`[analyze] marketCap7d from hourly-derived closes: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
+        } else if (marketCap > 0) {
+          marketCap7d = Array(7).fill(marketCap)
+          console.warn('[analyze] No varying close history — flat mc line')
+        } else {
+          marketCap7d = Array(7).fill(0)
+        }
+      } catch {
+        marketCap7d = marketCap > 0 ? Array(7).fill(marketCap) : Array(7).fill(0)
+      }
     }
 
     const heatPeak = 'See holder data'
