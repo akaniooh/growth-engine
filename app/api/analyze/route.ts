@@ -122,9 +122,25 @@ export async function POST(req: NextRequest) {
         )
         console.log(`[analyze] marketCap7d from OHLCV: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
       } else {
-        // Prices are all the same — OHLCV returned flat data, use mc directly
-        console.warn('[analyze] OHLCV prices identical — no real history, using current mc')
-        marketCap7d = Array(7).fill(marketCap)
+        // Retry with hourly candles to derive daily closes when 1D feed is flat
+        try {
+          const ohlcvHourly = birdeyeKey ? await getOHLCV(trimmed, birdeyeKey, 7, '1H').catch(() => []) : []
+          const byDay = new Map<string, number>()
+          for (const p of ohlcvHourly) {
+            const key = new Date(p.unixTime * 1000).toISOString().slice(0, 10)
+            byDay.set(key, p.c)
+          }
+          const dayCloses = Array.from(byDay.values()).slice(-7)
+          const varied = new Set(dayCloses.map((v) => v.toFixed(12))).size > 1
+          if (dayCloses.length >= 2 && varied) {
+            marketCap7d = dayCloses.map((c) => Math.max(0, Math.round(c * circulatingSupply)))
+          } else {
+            console.warn('[analyze] OHLCV prices identical — no real history, using current mc')
+            marketCap7d = Array(7).fill(marketCap)
+          }
+        } catch {
+          marketCap7d = Array(7).fill(marketCap)
+        }
       }
     } else if (marketCap > 0) {
       marketCap7d = Array(7).fill(marketCap)
@@ -161,7 +177,7 @@ export async function POST(req: NextRequest) {
       marketCap,
       marketCap7d,
       heatPeak,
-      insights: buildInsights({ symbol, whalePct, activePct: 0, newPct, dormantPct, priceUp, priceChange, volumeUp, volumeChange: volChange, heatPeak, networkActiveUsers: activeT }),
+      insights: buildInsights({ symbol, whalePct, activePct: activeT > 0 ? 100 : 0, newPct, dormantPct, priceUp, priceChange, volumeUp, volumeChange: volChange, heatPeak, networkActiveUsers: activeT }),
       actions:  buildActions({ symbol, whalePct, dormantPct, newPct, volumeUp, heatPeak }),
       tweets:   buildTweets({ symbol, holders, volume: fmtUSD(vol24h), priceUp, priceChange, volumeUp, dormantPct, whalePct, heatPeak }),
     }
