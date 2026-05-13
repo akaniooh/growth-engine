@@ -61,15 +61,22 @@ export function ActivityHeatmap({ mint, symbol }: ActivityHeatmapProps) {
   const [tab, setTab]         = useState<'heatmap' | 'trades'>('heatmap')
   const mintRef = useRef(mint)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const inFlightRef = useRef(false)
 
   const fetchTrades = async (currentMint: string, silent = false) => {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     if (!silent) setLoading(true)
     setError('')
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 12_000)
     try {
       const res  = await fetch('/api/trades', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ mint: currentMint }),
+        signal: controller.signal,
+        cache: 'no-store',
       })
       const json = await res.json()
       if (!res.ok || json.error) {
@@ -82,6 +89,8 @@ export function ActivityHeatmap({ mint, symbol }: ActivityHeatmapProps) {
     } catch {
       if (!silent) setError('Network error')
     } finally {
+      clearTimeout(timeoutId)
+      inFlightRef.current = false
       if (!silent) setLoading(false)
     }
   }
