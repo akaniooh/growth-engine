@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
       marketCap,
       marketCap7d,
       heatPeak,
-      insights: buildInsights({ symbol, whalePct, activePct: 0, newPct, dormantPct, priceUp, priceChange, volumeUp, volumeChange: volChange, heatPeak }),
+      insights: buildInsights({ symbol, whalePct, activePct: 0, newPct, dormantPct, priceUp, priceChange, volumeUp, volumeChange: volChange, heatPeak, networkActiveUsers: activeT }),
       actions:  buildActions({ symbol, whalePct, dormantPct, newPct, volumeUp, heatPeak }),
       tweets:   buildTweets({ symbol, holders, volume: fmtUSD(vol24h), priceUp, priceChange, volumeUp, dormantPct, whalePct, heatPeak }),
     }

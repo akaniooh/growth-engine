@@ -142,6 +142,7 @@ export function buildInsights(params: {
   newCount?:    number
   totalSampled?: number
   buySellRatio?: number
+  networkActiveUsers?: number
 }): Insight[] {
   const {
     whalePct,
@@ -153,10 +154,12 @@ export function buildInsights(params: {
     activeCount,
     newCount,
     totalSampled,
+    networkActiveUsers,
   } = params
 
   const sampled = totalSampled ?? 20
-  const activeWallets = activeCount ?? Math.round((params.activePct / 100) * sampled)
+  const estimatedActive = activeCount ?? Math.round((params.activePct / 100) * sampled)
+  const activeWallets = networkActiveUsers && networkActiveUsers > 0 ? networkActiveUsers : estimatedActive
   const newWallets = newCount ?? Math.round((newPct / 100) * sampled)
 
   return [
@@ -166,7 +169,7 @@ export function buildInsights(params: {
         ? `Network participation is strengthening: ${activeWallets} active wallets in the sampled holder set and 24h volume up ${volumeChange.toFixed(1)}%. This supports product-market pull.`
         : `Network participation is softening: only ${activeWallets} active wallets in the sampled holder set and 24h volume down ${Math.abs(volumeChange).toFixed(1)}%. PMF signal is weakening.`,
       metric: '24h participation trend',
-      val: `${volumeUp ? '+' : ''}${volumeChange.toFixed(1)}% volume`,
+      val: `${activeWallets > 0 ? activeWallets.toLocaleString() : 'N/A'} active / ${volumeUp ? '+' : ''}${volumeChange.toFixed(1)}% vol`,
       sentiment: volumeUp ? 'positive' : 'warning',
     },
     {

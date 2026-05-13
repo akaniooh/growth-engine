@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
     activeCount:   pcts.activeCount,
     newCount:      pcts.newCount,
     totalSampled:  pcts.totalSampled,
+    networkActiveUsers: pcts.activeCount,
   })
 
   const actions = buildActions({
