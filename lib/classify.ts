@@ -214,85 +214,71 @@ export function buildActions(params: {
   const { symbol: s, whalePct, dormantPct, newPct, volumeUp, heatPeak } = params
   const [peakDay, peakHour] = heatPeak.split(' ')
 
+  const concentrationRisk = whalePct >= 35
+  const retentionRisk = newPct >= 20 && dormantPct >= 30
+  const distributionWeak = dormantPct >= 45
+
   return [
     {
-      title: dormantPct > 40 ? 'Re-engage dormant holders' : 'Reward active traders',
-      desc:  dormantPct > 40
-        ? `${dormantPct}% of wallets are silent. A small targeted airdrop for wallets inactive 14+ days can reactivate them cheaply.`
-        : `Your active base is healthy. Lock in loyalty with exclusive tiers, governance access, or early-release perks.`,
-      cta:      dormantPct > 40 ? 'Build segment' : 'Design tiers',
-      priority: dormantPct > 40 ? 'high' : 'medium',
-      steps: dormantPct > 40 ? [
-        { label: 'Segment dormant wallets', detail: `Filter all $${s} holders for wallets with zero transactions in the last 14 days using Helius or Solscan.` },
-        { label: 'Design the wake-up hook', detail: 'Prepare a small symbolic airdrop — enough to trigger a wallet notification and remind them they hold your token.' },
-        { label: 'Set a response window', detail: 'Give a 72h window: wallets that interact after receiving the drop qualify for a second, larger reward.' },
-        { label: 'Broadcast the campaign', detail: `Post on X and Telegram: "Dormant $${s} wallets — check your wallet." Create urgency without revealing the full reward.` },
-        { label: 'Measure reactivation rate', detail: 'Track on-chain activity from the target list over 7 days. 15–20% reactivation is a successful campaign.' },
-      ] : [
-        { label: 'Define your tiers', detail: `Create 3 tiers: Bronze (any holder), Silver (hold >30 days), Gold (top 5% by $${s} volume traded).` },
-        { label: 'Set up a verification gate', detail: 'Use Holder Verify or Grape Protocol to gate a Discord role by wallet signature.' },
-        { label: 'Define tier benefits', detail: 'Gold: private channel + early announcements. Silver: exclusive role + monthly AMA. Bronze: community badge.' },
-        { label: 'Announce publicly', detail: 'Post the tier breakdown with a "check your tier" link to reconnect dormant holders.' },
-      ],
-      resources: [
-        { label: 'Streamflow Finance', url: 'https://streamflow.finance' },
-        { label: 'Helius wallet data', url: 'https://helius.dev' },
-        { label: 'Grape Protocol', url: 'https://grapes.network' },
-      ],
-    } as Action,
-    {
-      title: `Post on ${peakDay} at ${peakHour}`,
-      desc:  `Real on-chain data shows your audience is most active at this UTC window. Front-load announcements, campaign launches, and threads here.`,
-      cta:      'Plan content',
-      priority: 'medium',
-      steps: [
-        { label: 'Confirm your peak window', detail: `On-chain data shows ${peakDay} ${peakHour} UTC as your highest-activity window. Cross-check with your last 3 announcements.` },
-        { label: 'Draft your post', detail: 'Write the announcement now. Hook in the first line, a key stat or milestone, and a single CTA.' },
-        { label: 'Schedule on Buffer or Hypefury', detail: `Set the post to go live at ${peakHour} ${peakDay}. Queue a follow-up thread 2h later.` },
-        { label: 'Prep community channels', detail: 'Have your Telegram/Discord announcement ready to fire 30 min after the X post.' },
-      ],
-      resources: [
-        { label: 'Buffer (scheduling)', url: 'https://buffer.com' },
-        { label: 'Hypefury', url: 'https://hypefury.com' },
-      ],
-    } as Action,
-    {
-      title: volumeUp
-        ? 'Ride the volume breakout'
-        : whalePct > 25
-        ? 'Reduce whale concentration risk'
-        : 'Grow new wallet inflow',
-      desc: volumeUp
-        ? `Volume is up — this window lasts 48–72h. Launch your next campaign, partner announcement, or CT thread today.`
-        : whalePct > 25
-        ? `Introduce staking or lock mechanisms to reduce exit pressure from large holders and signal long-term commitment.`
-        : `Partner with an active Solana project for a cross-community drop. Target 5–10K fresh wallets in a single event.`,
-      cta: volumeUp ? 'Draft campaign' : whalePct > 25 ? 'Design lock mechanism' : 'Find partners',
+      title: concentrationRisk ? 'De-risk whale concentration' : 'Compound high-intent holders',
+      desc: concentrationRisk
+        ? `Whales control ${whalePct}% of supply. Lower fragility by converting large holders into long-horizon lockers and widening medium-wallet ownership.`
+        : `Concentration is manageable. Double down on wallets already showing conviction to increase hold time and reduce churn.` ,
+      cta: concentrationRisk ? 'Launch lock program' : 'Build loyalty ladder',
       priority: 'high',
-      steps: volumeUp ? [
-        { label: 'List all pending content', detail: 'Gather announcements, memes, and partnership reveals. Rank by impact.' },
-        { label: 'Build a 48h calendar', detail: 'Post 3–5 times over 48h, spaced 8–10h apart. Lead with your biggest news.' },
-        { label: 'Coordinate amplifiers', detail: 'DM 3–5 CT accounts with an embargoed brief so they amplify at the right time.' },
-        { label: 'Pin a thread', detail: 'Write a 5-tweet momentum thread and pin it to your profile for the breakout window.' },
-      ] : whalePct > 25 ? [
-        { label: 'Identify top whale wallets', detail: `Pull the top 10 $${s} holders. Note which are CT-linked vs anonymous.` },
-        { label: 'Design a locking incentive', detail: 'Offer exclusive rewards for locking: governance NFT, private channel access, or next-drop allocation.' },
-        { label: 'Deploy a lock contract', detail: 'Use Streamflow with 30/60/90 day periods and tiered rewards.' },
-        { label: 'Announce the programme', detail: 'Post that locking wallets get named recognition + early access. This signals confidence.' },
+      steps: concentrationRisk ? [
+        { label: 'Map top-wallet behavior', detail: `Segment top 25 $${s} wallets by last activity (0–3d, 4–14d, 15d+). Prioritize the most active 30% for direct outreach.` },
+        { label: 'Offer lock-in utility', detail: 'Create 30/60/90-day lock tiers with progressively stronger utility (alpha room, early feature access, governance weight).' },
+        { label: 'Add anti-dump unlock design', detail: 'Stagger unlock windows and pre-announce unlock calendars so sell pressure is smoothed instead of clustered.' },
+        { label: 'Measure dispersion weekly', detail: 'Track top-10 and top-25 concentration delta weekly. Success target: reduce top-10 concentration by 2–4% over 30 days.' },
       ] : [
-        { label: 'Identify partner candidates', detail: 'Find Solana projects with 20K+ holders and complementary audiences.' },
-        { label: 'Pitch a mutual airdrop', detail: 'Propose a swap airdrop: both communities get a small allocation of the other token.' },
-        { label: 'Define eligibility', detail: `Require holding both tokens to qualify. Drives cross-holding and locks in new $${s} wallets.` },
-        { label: 'Co-announce simultaneously', detail: 'Both projects post at the same time to maximise combined reach.' },
+        { label: 'Identify quality cohorts', detail: `Build 3 cohorts: newly acquired, repeat buyers, and >14 day holders for $${s}.` },
+        { label: 'Design progression rewards', detail: 'Reward behaviors, not just balances: holding duration, governance participation, and referral conversions.' },
+        { label: 'Run weekly wallet missions', detail: 'Ship one on-chain or community mission per week with transparent completion criteria and wallet-based eligibility.' },
+        { label: 'Track retention improvement', detail: 'Measure holder retention at day-7 and day-30 after each mission and iterate rewards accordingly.' },
       ],
-      resources: volumeUp
-        ? [{ label: 'Buffer', url: 'https://buffer.com' }, { label: 'TweetDeck', url: 'https://tweetdeck.twitter.com' }]
-        : whalePct > 25
-        ? [{ label: 'Streamflow Finance', url: 'https://streamflow.finance' }]
-        : [{ label: 'Solana ecosystem', url: 'https://solana.com/ecosystem' }, { label: 'Streamflow', url: 'https://streamflow.finance' }],
-    } as Action,
+    },
+    {
+      title: retentionRisk ? 'Fix new-wallet retention loop' : 'Scale acquisition with conversion guardrails',
+      desc: retentionRisk
+        ? `New-wallet inflow is strong (${newPct}%) but dormancy is elevated (${dormantPct}%). Shift from awareness campaigns to onboarding + activation loops.`
+        : `Acquisition conditions are favorable. Pair growth campaigns with conversion checkpoints so incoming wallets become active participants.` ,
+      cta: retentionRisk ? 'Deploy onboarding funnel' : 'Plan growth sprint',
+      priority: 'high',
+      steps: retentionRisk ? [
+        { label: 'Day-0 onboarding pack', detail: `Deliver a clear "what to do next" path for new $${s} wallets in the first 24h (claim, join, stake, vote, referral).` },
+        { label: '72h activation trigger', detail: 'Run a timed quest that requires one meaningful action within 72h of first wallet interaction.' },
+        { label: 'Lifecycle messaging', detail: 'Send segmented updates by wallet age (0–3d, 4–14d, 15+d) with one single CTA per message.' },
+        { label: 'Close-loop metric', detail: 'Primary KPI: activation rate of new wallets within 72h. Secondary KPI: 14-day dormant conversion.' },
+      ] : [
+        { label: 'Define campaign hypothesis', detail: 'Pick one growth hypothesis: partner exposure, creator amplification, or wallet incentive.' },
+        { label: 'Attach conversion event', detail: 'Every campaign CTA must map to an on-chain or measurable community action within 48h.' },
+        { label: 'Set stop-loss rules', detail: 'If conversion per wallet drops below target for 2 consecutive days, pause and reallocate budget.' },
+        { label: 'Scale winners only', detail: 'Increase spend/effort only on channels with above-target conversion and retention, not raw impressions.' },
+      ],
+    },
+    {
+      title: distributionWeak ? 'Re-activate dormant supply' : 'Exploit momentum with precision timing',
+      desc: distributionWeak
+        ? `Dormant share is ${dormantPct}%. Treat this as recoverable demand: reactivation is cheaper than net-new acquisition.`
+        : `Use the peak activity window (${peakDay} ${peakHour}) for high-impact launches and coordinated amplification.` ,
+      cta: distributionWeak ? 'Run reactivation campaign' : `Schedule ${peakDay} launch`,
+      priority: volumeUp ? 'high' : 'medium',
+      steps: distributionWeak ? [
+        { label: 'Create dormant segments', detail: 'Split dormant wallets by inactivity length (14–30d, 31–60d, 60d+) and prioritize shortest inactivity first.' },
+        { label: 'Design comeback incentive', detail: 'Offer a small, expiring benefit tied to one on-chain action to reactivate behavior, not just passive claims.' },
+        { label: 'Use proof-based messaging', detail: 'Share transparent campaign stats publicly (reactivated wallets, actions completed, retention after 7 days).' },
+        { label: 'Prevent relapse', detail: 'Queue follow-up missions within 5–7 days so reactivated wallets do not return to dormant status.' },
+      ] : [
+        { label: 'Prepare content stack', detail: `Draft launch post, proof tweet, and follow-up thread for ${peakDay} ${peakHour} UTC.` },
+        { label: 'Coordinate distribution', detail: 'Align community mods, partner accounts, and KOL allies with a synchronized publish window.' },
+        { label: 'Trigger social proof quickly', detail: 'Within 2 hours, publish live adoption/progress signals to reinforce momentum.' },
+        { label: 'Post-mortem in 24h', detail: 'Evaluate volume lift, active wallet lift, and conversion quality to refine the next launch cadence.' },
+      ],
+    },
   ]
 }
+
 
 export function buildTweets(params: {
   symbol:     string
@@ -308,68 +294,53 @@ export function buildTweets(params: {
   const { symbol: s, holders, volume, priceUp, priceChange, volumeUp, dormantPct, whalePct, heatPeak } = params
   const [peakDay, peakHour] = heatPeak.split(' ')
 
+  const narrative = volumeUp
+    ? `Participation is accelerating and execution speed matters.`
+    : `Participation cooled, which is where strong communities separate from hype cycles.`
+
   return [
     {
-      type: 'Volume Signal',
+      type: 'Market Narrative Thread',
       category: 'announcement',
-      hook: 'Ride real momentum publicly',
-      body: `$${s} 24h volume: ${volume}.\n\n${volumeUp ? 'The market is building momentum.' : 'The floor is holding strong.'}\n\n${holders.toLocaleString()} wallets. Not leaving.`,
+      hook: 'Turn data into a conviction story',
+      body: `$${s} update:
+• Holders: ${holders.toLocaleString()}
+• 24h volume: ${volume}
+• Price: ${priceUp ? '+' : ''}${priceChange.toFixed(1)}%
+
+${narrative}
+
+Next execution window: ${peakDay} ${peakHour} UTC.`,
     },
     {
-      type: 'Price Move',
-      category: 'announcement',
-      hook: 'Capture attention on real price action',
-      body: `$${s} is ${priceUp ? 'up' : 'down'} ${Math.abs(priceChange).toFixed(1)}% today.\n\n${priceUp ? 'Momentum is real.' : 'Accumulation window is open.'}\n\nOn-chain data doesn't lie.`,
-    },
-    {
-      type: 'Holder Milestone',
-      category: 'community',
-      hook: 'Social proof from real holder data',
-      body: `${holders.toLocaleString()} wallets holding $${s}.\n\nEvery single one made a decision.\n\nThe community keeps growing.`,
-    },
-    {
-      type: 'Builder Post',
-      category: 'community',
-      hook: 'Show long-term commitment',
-      body: `We're not here to pump $${s}.\n\nWe're here to build something that outlasts every cycle.\n\nThe community makes that possible.`,
-    },
-    {
-      type: dormantPct > 40 ? 'Wake-Up Drop' : 'Holder Reward',
-      category: 'campaign',
-      hook: dormantPct > 40 ? 'Re-activate dormant holders' : 'Incentivise loyalty',
-      body: dormantPct > 40
-        ? `${dormantPct}% of $${s} holders have been quiet.\n\nThis week, we wake them up.\n\nIf your wallet has been idle — check back in 24 hours.`
-        : `Rewarding $${s} holders this week.\n\nLong-term wallets only.\n\nStay tuned for the snapshot date.`,
-    },
-    {
-      type: 'Snapshot Tease',
-      category: 'campaign',
-      hook: 'Create urgency to hold',
-      body: `$${s} snapshot incoming.\n\nHold your position continuously to qualify.\n\nSell before then and you're out.\n\nSimple.`,
-    },
-    {
-      type: 'Engagement Poll',
+      type: 'Retention CTA',
       category: 'engagement',
-      hook: 'Drive replies and reach',
-      body: `How long have you held $${s}?\n\n🟦 Less than a week\n🟩 1–4 weeks\n🟨 1–3 months\n🟥 Since day one\n\nDrop it below 👇`,
+      hook: 'Drive an action, not just impressions',
+      body: `If you hold $${s}, do one thing today:
+1) Check your wallet segment
+2) Complete this week’s mission
+3) Invite 1 aligned holder
+
+We’re optimizing for high-signal community growth, not vanity metrics.`,
     },
     {
-      type: 'Conviction Hold',
-      category: 'engagement',
-      hook: 'Keep holders from panic selling',
-      body: `The $${s} holders who haven't checked the chart in a week are going to be the most surprised.\n\nStay off the charts. Stay convicted.`,
+      type: 'Risk Transparency Post',
+      category: 'community',
+      hook: 'Earn trust with honest metrics',
+      body: `Current structure snapshot for $${s}:
+• Whale concentration: ${whalePct}%
+• Dormant share: ${dormantPct}%
+
+We track these publicly because sustainable growth > short-term noise.`,
     },
     {
-      type: 'On-Chain Alpha',
-      category: 'alpha',
-      hook: 'Real data builds credibility',
-      body: `$${s} on-chain data:\n\n→ ${holders.toLocaleString()} total holders\n→ ${whalePct}% whale concentration\n→ Peak activity: ${peakDay} ${peakHour}\n\nTrade with context.`,
-    },
-    {
-      type: 'Timing Alpha',
-      category: 'alpha',
-      hook: 'Data-driven post timing',
-      body: `Best time to post about $${s}: ${peakDay} ${peakHour} UTC\n\nVolume is ${volumeUp ? 'building' : 'consolidating'}.\n\nPost accordingly.`,
+      type: 'Momentum / Rebuild Signal',
+      category: volumeUp ? 'alpha' : 'community',
+      hook: volumeUp ? 'Press the advantage while flow is strong' : 'Build depth while others go quiet',
+      body: volumeUp
+        ? `Volume is expanding. We’re using this window to convert attention into long-term holders through targeted activation.`
+        : `Lower volume is not a setback — it’s an opportunity to tighten holder quality and improve retention fundamentals.`,
     },
   ]
 }
+
