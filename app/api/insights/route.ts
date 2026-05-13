@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const birdeyeKey = process.env.BIRDEYE_API_KEY
   let symbol = mint.slice(0, 4).toUpperCase()
   let priceUp = true, priceChange = 0, volumeUp = true, volumeChange = 0
-  let holders = 0, volume = '$0'
+  let holders = 0, volume = '$0', networkActiveUsers = 0
 
   // Check demo tokens
   const demoKey = Object.keys(MOCK_DATA).find((k) => mint === k || mint.toUpperCase() === k)
@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     volumeChange = parseFloat(demo.volumeChange.replace('%','').replace('+',''))
     holders     = demo.holders
     volume      = demo.volume
+    networkActiveUsers = demo.activeTraders
   } else if (birdeyeKey) {
     try {
       const overview = await getTokenOverview(mint, birdeyeKey)
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
         volumeChange = overview.v24hChangePercent
         volumeUp     = volumeChange >= 0
         holders      = overview.holder
+        networkActiveUsers = overview.uniqueWallet24h
         const vol    = overview.v24hUSD
         volume       = vol >= 1e6 ? `$${(vol/1e6).toFixed(1)}M` : `$${(vol/1e3).toFixed(0)}K`
       }
@@ -61,7 +63,7 @@ export async function POST(req: NextRequest) {
     activeCount:   pcts.activeCount,
     newCount:      pcts.newCount,
     totalSampled:  pcts.totalSampled,
-    networkActiveUsers: pcts.activeCount,
+    networkActiveUsers: networkActiveUsers || pcts.activeCount,
   })
 
   const actions = buildActions({

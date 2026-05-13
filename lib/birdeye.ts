@@ -88,14 +88,15 @@ export interface OHLCVPoint {
 export async function getPriceHistory(
   address: string,
   apiKey: string,
-  days = 7
+  days = 7,
+  interval: '1D' | '1H' = '1D'
 ): Promise<OHLCVPoint[]> {
   const to   = Math.floor(Date.now() / 1000)
   const from = to - days * 86400
 
   // Method 1: history_price
   try {
-    const url = `${BIRDEYE_BASE}/defi/history_price?address=${address}&address_type=token&type=1D&time_from=${from}&time_to=${to}`
+    const url = `${BIRDEYE_BASE}/defi/history_price?address=${address}&address_type=token&type=${interval}&time_from=${from}&time_to=${to}`
     const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
     if (res.ok) {
       const json = await res.json()
@@ -109,7 +110,7 @@ export async function getPriceHistory(
 
   // Method 2: ohlcv
   try {
-    const url = `${BIRDEYE_BASE}/defi/ohlcv?address=${address}&type=1D&time_from=${from}&time_to=${to}`
+    const url = `${BIRDEYE_BASE}/defi/ohlcv?address=${address}&type=${interval}&time_from=${from}&time_to=${to}`
     const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
     if (res.ok) {
       const json = await res.json()
@@ -124,8 +125,8 @@ export async function getPriceHistory(
   return []
 }
 
-export async function getOHLCV(address: string, apiKey: string, days = 7): Promise<OHLCVPoint[]> {
-  return getPriceHistory(address, apiKey, days)
+export async function getOHLCV(address: string, apiKey: string, days = 7, interval: '1D' | '1H' = '1D'): Promise<OHLCVPoint[]> {
+  return getPriceHistory(address, apiKey, days, interval)
 }
 
 /**
