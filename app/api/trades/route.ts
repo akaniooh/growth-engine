@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { unstable_noStore as noStore } from 'next/cache'
 
 const HELIUS_BASE = 'https://api.helius.xyz'
 const HELIUS_RPC  = 'https://mainnet.helius-rpc.com'
@@ -69,22 +70,24 @@ function parseTx(tx: Record<string, unknown>, mint: string): ParsedTrade | null 
       const nativeInput  = swap.nativeInput  as { mint?: string; amount?: number } | undefined
       const nativeOutput = swap.nativeOutput as { mint?: string; amount?: number } | undefined
       const tokenInputs  = (swap.tokenInputs  as Array<{mint: string; amount: number; userAccount?: string}>) || []
-      const tokenOutputs = (swap.tokenOutputs as Array<{mint: string; amount: number}>) || []
+      const tokenOutputs = (swap.tokenOutputs as Array<{mint: string; amount: number; userAccount?: string}>) || []
 
-      // Determine if this is a buy or sell of our token
-      const isBuy  = tokenOutputs.some(t => t.mint === mint)
-      const isSell = tokenInputs.some(t => t.mint === mint)
+      const inAmount = tokenInputs
+        .filter((t) => t.mint === mint)
+        .reduce((acc, t) => acc + (t.amount || 0), 0)
+      const outAmount = tokenOutputs
+        .filter((t) => t.mint === mint)
+        .reduce((acc, t) => acc + (t.amount || 0), 0)
 
-      if (!isBuy && !isSell) return null
+      const netAmount = outAmount - inAmount
+      if (Math.abs(netAmount) <= 0) return null
 
-      const tokenEntry = isBuy
-        ? tokenOutputs.find(t => t.mint === mint)
-        : tokenInputs.find(t => t.mint === mint)
+      const side: 'buy' | 'sell' = netAmount > 0 ? 'buy' : 'sell'
+      const amount = Math.abs(netAmount)
 
-      const amount = (tokenEntry?.amount ?? 0)
-      const solAmount = isBuy
-        ? (nativeInput?.amount ?? 0) / 1e9
-        : (nativeOutput?.amount ?? 0) / 1e9
+      const solIn = (nativeInput?.amount ?? 0) / 1e9
+      const solOut = (nativeOutput?.amount ?? 0) / 1e9
+      const solAmount = side === 'buy' ? solIn : solOut
 
       // Rough USD value: use SOL price estimate ~$150 as fallback
       const solPrice = 150
@@ -95,13 +98,13 @@ function parseTx(tx: Record<string, unknown>, mint: string): ParsedTrade | null 
 
       return {
         txHash:    sig,
-        side:      isBuy ? 'buy' : 'sell',
+        side,
         price:     amount > 0 ? usdValue / amount : 0,
         volume:    usdValue,
         amount,
         source,
         blockTime: time,
-        from:      tokenInputs[0]?.userAccount ?? feePayer,
+        from:      tokenInputs[0]?.userAccount ?? tokenOutputs[0]?.userAccount ?? feePayer,
       }
     }
 
@@ -134,6 +137,8 @@ function parseTx(tx: Record<string, unknown>, mint: string): ParsedTrade | null 
 }
 
 export async function POST(req: NextRequest) {
+  noStore()
+
   const { mint } = await req.json()
   if (!mint) return NextResponse.json({ error: 'mint required' }, { status: 400 })
 
@@ -162,7 +167,7 @@ export async function POST(req: NextRequest) {
     // Fetch recent transactions for the token mint address
     // Use Helius enhanced transactions API — works on free plan
     const url = `${HELIUS_BASE}/v0/addresses/${mint}/transactions?api-key=${heliusKey}&limit=100&type=SWAP`
-    const res = await fetch(url)
+    const res = await fetch(url, { cache: 'no-store' })
 
     let rawTxs: Record<string, unknown>[] = []
     if (res.ok) {
@@ -176,7 +181,7 @@ export async function POST(req: NextRequest) {
     // If SWAP type returns nothing, try without type filter
     if (rawTxs.length === 0) {
       const url2 = `${HELIUS_BASE}/v0/addresses/${mint}/transactions?api-key=${heliusKey}&limit=100`
-      const res2 = await fetch(url2)
+      const res2 = await fetch(url2, { cache: 'no-store' })
       if (res2.ok) {
         const json2 = await res2.json()
         rawTxs = Array.isArray(json2) ? json2 : []
