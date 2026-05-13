@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MOCK_DATA, TokenData } from '@/lib/data'
 import { getTokenMetadata } from '@/lib/helius'
-import { getTokenOverview, getOHLCV } from '@/lib/birdeye'
+import { getTokenOverview, getOHLCV, getPriceHistoryFromCoinGecko } from '@/lib/birdeye'
 import { buildInsights, buildActions, buildTweets } from '@/lib/classify'
 
 const SOLANA_ADDR_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
@@ -124,20 +124,21 @@ export async function POST(req: NextRequest) {
       return closes.map((c) => c > 0 ? Math.round(c * impliedSupply) : 0)
     }
 
-    // Attempt 1: daily OHLCV closes
+    // Attempt 1: Birdeye daily OHLCV closes
     const dailyCloses = Array.isArray(ohlcv) ? ohlcv.slice(-7).map((p) => p.c) : []
     const mcFromDaily = buildMcSeries(dailyCloses)
 
     if (mcFromDaily) {
       marketCap7d = mcFromDaily
-      console.log(`[analyze] marketCap7d from daily closes: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
+      console.log(`[analyze] marketCap7d from Birdeye daily: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
     } else {
-      // Attempt 2: hourly OHLCV — pick the last close of each UTC day
+      // Attempt 2: Birdeye hourly — pick day-end close per UTC day
+      let mcFromHourly: number[] | null = null
       try {
         const ohlcvHourly = birdeyeKey
           ? await getOHLCV(trimmed, birdeyeKey, 7, '1H').catch(() => [])
           : []
-        const byDay = new Map()
+        const byDay = new Map<string, number>()
         for (const p of ohlcvHourly) {
           if (p.c > 0) {
             const key = new Date(p.unixTime * 1000).toISOString().slice(0, 10)
@@ -148,16 +149,31 @@ export async function POST(req: NextRequest) {
           .sort(([a], [b]) => a.localeCompare(b))
           .slice(-7)
           .map(([, close]) => close)
-        const mcFromHourly = buildMcSeries(dayCloses)
+        mcFromHourly = buildMcSeries(dayCloses)
         if (mcFromHourly) {
-          marketCap7d = mcFromHourly
-          console.log(`[analyze] marketCap7d from hourly closes: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
-        } else {
-          marketCap7d = marketCap > 0 ? Array(7).fill(marketCap) : Array(7).fill(0)
-          console.warn('[analyze] No usable price history — flat mc line')
+          console.log(`[analyze] marketCap7d from Birdeye hourly: min=${Math.min(...mcFromHourly)} max=${Math.max(...mcFromHourly)}`)
         }
-      } catch {
-        marketCap7d = marketCap > 0 ? Array(7).fill(marketCap) : Array(7).fill(0)
+      } catch { /* continue to next fallback */ }
+
+      if (mcFromHourly) {
+        marketCap7d = mcFromHourly
+      } else {
+        // Attempt 3: CoinGecko public API — no key needed, real historical prices
+        console.log('[analyze] Birdeye price history flat/unavailable — trying CoinGecko')
+        try {
+          const cgPoints = await getPriceHistoryFromCoinGecko(trimmed, 7)
+          const cgCloses = cgPoints.map((p) => p.c)
+          const mcFromCG = buildMcSeries(cgCloses)
+          if (mcFromCG) {
+            marketCap7d = mcFromCG
+            console.log(`[analyze] marketCap7d from CoinGecko: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
+          } else {
+            marketCap7d = marketCap > 0 ? Array(7).fill(marketCap) : Array(7).fill(0)
+            console.warn('[analyze] All price history sources flat/unavailable')
+          }
+        } catch {
+          marketCap7d = marketCap > 0 ? Array(7).fill(marketCap) : Array(7).fill(0)
+        }
       }
     }
 

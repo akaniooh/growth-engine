@@ -94,21 +94,10 @@ export async function getPriceHistory(
   const to   = Math.floor(Date.now() / 1000)
   const from = to - days * 86400
 
-  // Method 1: /defi/ohlcv — real open/high/low/close/volume candles (preferred)
-  try {
-    const url = `${BIRDEYE_BASE}/defi/ohlcv?address=${address}&type=${interval}&time_from=${from}&time_to=${to}`
-    const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
-    if (res.ok) {
-      const json = await res.json()
-      const items: OHLCVPoint[] = json?.data?.items ?? json?.data ?? json?.items ?? []
-      if (Array.isArray(items) && items.length > 1) {
-        console.log(`[birdeye] ohlcv: ${items.length} candles (interval=${interval})`)
-        return items
-      }
-    }
-  } catch (e) { console.warn('[birdeye] ohlcv failed:', (e as Error).message) }
-
-  // Method 2: /defi/history_price — price snapshots (fallback, volume will be 0)
+  // Method 1: /defi/history_price — reliable daily price snapshots on all Birdeye tiers.
+  // /defi/ohlcv with type=1D often returns the CURRENT price for all historical candles
+  // on starter/free tiers, making every close identical → flat MC line.
+  // history_price returns one real price point per interval, sorted ascending.
   try {
     const url = `${BIRDEYE_BASE}/defi/history_price?address=${address}&address_type=token&type=${interval}&time_from=${from}&time_to=${to}`
     const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
@@ -116,13 +105,94 @@ export async function getPriceHistory(
       const json = await res.json()
       const items: { unixTime: number; value: number }[] = json?.data?.items ?? json?.data ?? []
       if (Array.isArray(items) && items.length > 1) {
-        console.log(`[birdeye] history_price fallback: ${items.length} points`)
-        return items.map((p) => ({ unixTime: p.unixTime, o: p.value, h: p.value, l: p.value, c: p.value, v: 0 }))
+        // Verify prices actually vary — if all identical, this endpoint also failed us
+        const values = items.map((p) => p.value)
+        const allSame = values.every((v) => v === values[0])
+        if (!allSame) {
+          console.log(`[birdeye] history_price: ${items.length} points, prices vary ✓`)
+          return items.map((p) => ({ unixTime: p.unixTime, o: p.value, h: p.value, l: p.value, c: p.value, v: 0 }))
+        }
+        console.warn(`[birdeye] history_price returned identical prices (${values[0]}) — trying ohlcv`)
       }
     }
   } catch (e) { console.warn('[birdeye] history_price failed:', (e as Error).message) }
 
+  // Method 2: /defi/ohlcv — try anyway as fallback
+  try {
+    const url = `${BIRDEYE_BASE}/defi/ohlcv?address=${address}&type=${interval}&time_from=${from}&time_to=${to}`
+    const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
+    if (res.ok) {
+      const json = await res.json()
+      const items: OHLCVPoint[] = json?.data?.items ?? json?.data ?? json?.items ?? []
+      if (Array.isArray(items) && items.length > 1) {
+        const closes = items.map((p) => p.c)
+        const allSame = closes.every((v) => v === closes[0])
+        if (!allSame) {
+          console.log(`[birdeye] ohlcv: ${items.length} candles, closes vary ✓`)
+          return items
+        }
+        console.warn(`[birdeye] ohlcv also returned identical closes — no real history available`)
+      }
+    }
+  } catch (e) { console.warn('[birdeye] ohlcv failed:', (e as Error).message) }
+
   return []
+}
+
+/**
+ * Fetch 7-day price history from CoinGecko (no API key needed).
+ * CoinGecko identifies Solana tokens by their mint address on the solana platform.
+ * Returns one data point per day, oldest → newest.
+ */
+export async function getPriceHistoryFromCoinGecko(
+  mintAddress: string,
+  days = 7
+): Promise<OHLCVPoint[]> {
+  try {
+    // CoinGecko's /coins/{id}/market_chart/range endpoint by contract address
+    const to   = Math.floor(Date.now() / 1000)
+    const from = to - days * 86400
+    const url  = `https://api.coingecko.com/api/v3/coins/solana/contract/${mintAddress}/market_chart/range?vs_currency=usd&from=${from}&to=${to}`
+    const res  = await fetch(url, {
+      headers: { 'Accept': 'application/json' },
+    })
+    if (!res.ok) {
+      console.warn(`[coingecko] ${res.status} for ${mintAddress.slice(0, 8)}`)
+      return []
+    }
+    const json = await res.json()
+    // prices: [[timestamp_ms, price], ...]
+    const prices: [number, number][] = json?.prices ?? []
+    if (!Array.isArray(prices) || prices.length < 2) return []
+
+    // Deduplicate to one point per day (keep last per UTC day)
+    const byDay = new Map<string, { unixTime: number; value: number }>()
+    for (const [tsMs, value] of prices) {
+      const key = new Date(tsMs).toISOString().slice(0, 10)
+      byDay.set(key, { unixTime: Math.floor(tsMs / 1000), value })
+    }
+
+    const points = Array.from(byDay.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-days)
+      .map(([, p]) => ({
+        unixTime: p.unixTime,
+        o: p.value, h: p.value, l: p.value, c: p.value, v: 0,
+      }))
+
+    const values = points.map((p) => p.c)
+    const allSame = values.every((v) => v === values[0])
+    if (allSame) {
+      console.warn('[coingecko] returned identical prices — token not listed?')
+      return []
+    }
+
+    console.log(`[coingecko] ${points.length} daily price points, prices vary ✓`)
+    return points
+  } catch (e) {
+    console.warn('[coingecko] fetch failed:', (e as Error).message)
+    return []
+  }
 }
 
 export async function getOHLCV(address: string, apiKey: string, days = 7, interval: '1D' | '1H' = '1D'): Promise<OHLCVPoint[]> {
