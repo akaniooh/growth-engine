@@ -5,7 +5,6 @@ import { TokenData } from '@/lib/data'
 import { MetricCards } from './MetricCards'
 import { MarketCapChart } from './MarketCapChart'
 import { WalletTable } from './WalletTable'
-import { ActivityHeatmap } from './ActivityHeatmap'
 import { AIInsights } from './AIInsights'
 import { ActionEngine } from './ActionEngine'
 import { ContentGenerator } from './ContentGenerator'
@@ -164,8 +163,6 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
         totalHolders={data.holders}
         onSegmentsLoaded={handleSegmentsLoaded}
       />
-
-      <ActivityHeatmap mint={data.mint} symbol={data.symbol} />
 
       <div className="border-t border-surface-border" />
 
