@@ -5,7 +5,6 @@ import { TokenData } from '@/lib/data'
 import { MetricCards } from './MetricCards'
 import { MarketCapChart } from './MarketCapChart'
 import { WalletTable } from './WalletTable'
-import { ActivityHeatmap } from './ActivityHeatmap'
 import { AIInsights } from './AIInsights'
 import { ActionEngine } from './ActionEngine'
 import { ContentGenerator } from './ContentGenerator'
@@ -18,8 +17,9 @@ interface DashboardProps {
 }
 
 export function Dashboard({ data: initialData, seed }: DashboardProps) {
-  const [data, setData]         = useState<TokenData>(initialData)
-  const [polling, setPolling]   = useState(false)
+  const [data, setData]           = useState<TokenData>(initialData)
+  const [polling, setPolling]     = useState(false)
+  const [realPcts, setRealPcts]   = useState<{ whale: number; active: number; new: number; dormant: number } | null>(null)
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [secondsAgo, setSecondsAgo]   = useState(0)
   const mintRef    = useRef(initialData.mint)
@@ -42,6 +42,35 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
     return () => clearInterval(id)
   }, [lastUpdated])
 
+  // Called when WalletTable loads real holder segment data
+  // Re-fetch insights from server with real segment percentages
+  const handleSegmentsLoaded = useCallback(async (pcts: { whale: number; active: number; new: number; dormant: number }) => {
+    setRealPcts(pcts)
+    const currentMint = mintRef.current
+    try {
+      const res  = await fetch('/api/insights', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ mint: currentMint, pcts, enriched: true }),
+      })
+      if (!res.ok) return
+      const json = await res.json()
+      if (json.insights && json.actions && mintRef.current === currentMint) {
+        setData((prev) => ({
+          ...prev,
+          distribution: [
+            { label: 'Whales',  pct: pcts.whale,   color: '#4f6ef7' },
+            { label: 'Active',  pct: pcts.active,  color: '#f0f0f4' },
+            { label: 'New',     pct: pcts.new,     color: '#8a8a9a' },
+            { label: 'Dormant', pct: pcts.dormant, color: '#2a2a30' },
+          ],
+          insights: json.insights,
+          actions:  json.actions,
+        }))
+      }
+    } catch { /* silent */ }
+  }, [])
+
   const refresh = useCallback(async (silent = false) => {
     const currentMint = mintRef.current
     if (!silent) setPolling(true)
@@ -61,18 +90,25 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
         if (hasRealData) {
           setData((prev) => ({
             ...fresh,
-            // Keep distribution from WalletTable (holders route) if we have it
+            // Keep holder-derived segments and AI outputs when available
             distribution: prev.distribution.some((d) => d.pct > 0)
               ? prev.distribution
               : fresh.distribution,
+            insights: realPcts ? prev.insights : fresh.insights,
+            actions: realPcts ? prev.actions : fresh.actions,
+            tweets: realPcts ? prev.tweets : fresh.tweets,
           }))
           setLastUpdated(new Date())
           setSecondsAgo(0)
+
+          if (realPcts) {
+            handleSegmentsLoaded(realPcts)
+          }
         }
       }
     } catch { /* silent fail */ }
     finally { if (!silent) setPolling(false) }
-  }, [])
+  }, [handleSegmentsLoaded, realPcts])
 
   // Auto-refresh every 90 seconds — but only if we have real data
   useEffect(() => {
@@ -132,9 +168,8 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
         mint={data.mint}
         symbol={data.symbol}
         totalHolders={data.holders}
+        onSegmentsLoaded={handleSegmentsLoaded}
       />
-
-      <ActivityHeatmap seed={seed} peak={data.heatPeak} />
 
       <div className="border-t border-surface-border" />
 

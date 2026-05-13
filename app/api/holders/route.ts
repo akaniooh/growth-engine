@@ -140,15 +140,40 @@ export async function POST(req: NextRequest) {
     const processed = await buildHolderList(mint, heliusKey)
     const filtered  = filter === 'all' ? processed : processed.filter((h) => h.type === filter)
 
+    const totalCount = processed.length || 1
+    const whaleCt  = processed.filter((h) => h.type === 'whale').length
+    const activeCt = processed.filter((h) => h.type === 'active').length
+    const newCt    = processed.filter((h) => h.type === 'new').length
+    const dormCt   = processed.filter((h) => h.type === 'dormant').length
+
+    // Supply-based percentages: how much of total supply each segment holds
+    // This is more meaningful than count ratios from just top 20 wallets
+    const totalPct    = processed.reduce((s, h) => s + h.pct, 0) || 1
+    const whalePctSup = Math.round(processed.filter((h) => h.type === 'whale').reduce((s,h) => s+h.pct, 0))
+    const activePctSup = Math.round(processed.filter((h) => h.type === 'active').reduce((s,h) => s+h.pct, 0))
+    const newPctSup   = Math.round(processed.filter((h) => h.type === 'new').reduce((s,h) => s+h.pct, 0))
+
     return NextResponse.json({
       wallets: filtered.map((h) => toWallet(h, symbol)),
       total:   filtered.length,
       counts: {
         all:     processed.length,
-        whale:   processed.filter((h) => h.type === 'whale').length,
-        active:  processed.filter((h) => h.type === 'active').length,
-        new:     processed.filter((h) => h.type === 'new').length,
-        dormant: processed.filter((h) => h.type === 'dormant').length,
+        whale:   whaleCt,
+        active:  activeCt,
+        new:     newCt,
+        dormant: dormCt,
+      },
+      // Supply-based pcts: what % of circulating supply each segment controls
+      pcts: {
+        whale:   whalePctSup,
+        active:  activePctSup,
+        new:     newPctSup,
+        dormant: Math.max(0, 100 - whalePctSup - activePctSup - newPctSup),
+        // Also pass count-based for reference
+        whaleCount: whaleCt,
+        activeCount: activeCt,
+        newCount: newCt,
+        totalSampled: totalCount,
       },
     })
   } catch (err: unknown) {
