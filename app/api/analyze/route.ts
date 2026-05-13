@@ -112,11 +112,9 @@ export async function POST(req: NextRequest) {
     let marketCap7d: number[]
     if (Array.isArray(ohlcv) && ohlcv.length >= 2 && circulatingSupply > 0) {
       const points = ohlcv.slice(-7)
-      // Check that prices actually vary (not all identical)
+      // Consider any non-identical closes as usable history
       const prices  = points.map((p) => p.c)
-      const minP    = Math.min(...prices)
-      const maxP    = Math.max(...prices)
-      const hasVariation = (maxP - minP) / (maxP || 1) > 0.0001
+      const hasVariation = new Set(prices.map((v) => v.toFixed(12))).size > 1
 
       if (hasVariation) {
         marketCap7d = points.map((p) =>
