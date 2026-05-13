@@ -94,7 +94,21 @@ export async function getPriceHistory(
   const to   = Math.floor(Date.now() / 1000)
   const from = to - days * 86400
 
-  // Method 1: history_price
+  // Method 1: /defi/ohlcv — real open/high/low/close/volume candles (preferred)
+  try {
+    const url = `${BIRDEYE_BASE}/defi/ohlcv?address=${address}&type=${interval}&time_from=${from}&time_to=${to}`
+    const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
+    if (res.ok) {
+      const json = await res.json()
+      const items: OHLCVPoint[] = json?.data?.items ?? json?.data ?? json?.items ?? []
+      if (Array.isArray(items) && items.length > 1) {
+        console.log(`[birdeye] ohlcv: ${items.length} candles (interval=${interval})`)
+        return items
+      }
+    }
+  } catch (e) { console.warn('[birdeye] ohlcv failed:', (e as Error).message) }
+
+  // Method 2: /defi/history_price — price snapshots (fallback, volume will be 0)
   try {
     const url = `${BIRDEYE_BASE}/defi/history_price?address=${address}&address_type=token&type=${interval}&time_from=${from}&time_to=${to}`
     const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
@@ -102,25 +116,11 @@ export async function getPriceHistory(
       const json = await res.json()
       const items: { unixTime: number; value: number }[] = json?.data?.items ?? json?.data ?? []
       if (Array.isArray(items) && items.length > 1) {
-        console.log(`[birdeye] history_price: ${items.length} points`)
+        console.log(`[birdeye] history_price fallback: ${items.length} points`)
         return items.map((p) => ({ unixTime: p.unixTime, o: p.value, h: p.value, l: p.value, c: p.value, v: 0 }))
       }
     }
   } catch (e) { console.warn('[birdeye] history_price failed:', (e as Error).message) }
-
-  // Method 2: ohlcv
-  try {
-    const url = `${BIRDEYE_BASE}/defi/ohlcv?address=${address}&type=${interval}&time_from=${from}&time_to=${to}`
-    const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
-    if (res.ok) {
-      const json = await res.json()
-      const items: OHLCVPoint[] = json?.data?.items ?? json?.data ?? json?.items ?? []
-      if (Array.isArray(items) && items.length > 0) {
-        console.log(`[birdeye] ohlcv: ${items.length} candles`)
-        return items
-      }
-    }
-  } catch (e) { console.warn('[birdeye] ohlcv failed:', (e as Error).message) }
 
   return []
 }

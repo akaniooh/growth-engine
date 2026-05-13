@@ -102,48 +102,59 @@ export async function POST(req: NextRequest) {
       ? ohlcv.slice(-7).map((c) => Math.max(0, parseFloat((c.v / 1e6).toFixed(4))))
       : [0, 0, 0, 0, 0, 0, parseFloat((vol24h / 1e6).toFixed(4))]
 
-    // Circulating supply: from metadata or derived from mc/price
+    // Circulating supply: from metadata, or back-derive from current mc/price
     const circulatingSupply = (meta?.supply && meta.supply > 0)
       ? meta.supply
       : (marketCap > 0 && price > 0 ? marketCap / price : 0)
 
-        // Build 7-day market cap series from price history.
-    // Prefer relative scaling from closes so MC moves even when supply metadata is imperfect.
+    console.log(`[analyze] circulatingSupply: ${circulatingSupply}`)
+
+    // Build 7-day market cap series: supply x close_price per day.
+    // This matches how Birdeye/Solscan compute it — supply x price, not relative scaling.
     let marketCap7d: number[]
-    const buildScaledSeries = (closes: number[]): number[] | null => {
-      if (!marketCap || marketCap <= 0 || closes.length < 2) return null
-      const lastClose = closes[closes.length - 1]
-      if (!lastClose || lastClose <= 0) return null
-      const varied = new Set(closes.map((v) => v.toFixed(12))).size > 1
-      if (!varied) return null
-      return closes.map((c) => Math.max(0, Math.round(marketCap * (c / lastClose))))
+
+    const buildMcSeries = (closes: number[]): number[] | null => {
+      if (closes.length < 2) return null
+      const positiveCloses = closes.filter((v) => v > 0)
+      if (positiveCloses.length < 2) return null
+      const impliedSupply = circulatingSupply > 0
+        ? circulatingSupply
+        : (marketCap > 0 && price > 0 ? marketCap / price : 0)
+      if (impliedSupply <= 0) return null
+      return closes.map((c) => c > 0 ? Math.round(c * impliedSupply) : 0)
     }
 
-    const dailyCloses = Array.isArray(ohlcv) ? ohlcv.slice(-7).map((p) => p.c).filter((v) => v > 0) : []
-    const scaledDaily = buildScaledSeries(dailyCloses)
+    // Attempt 1: daily OHLCV closes
+    const dailyCloses = Array.isArray(ohlcv) ? ohlcv.slice(-7).map((p) => p.c) : []
+    const mcFromDaily = buildMcSeries(dailyCloses)
 
-    if (scaledDaily) {
-      marketCap7d = scaledDaily
+    if (mcFromDaily) {
+      marketCap7d = mcFromDaily
       console.log(`[analyze] marketCap7d from daily closes: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
     } else {
-      // Retry with hourly candles to derive day-end closes when daily feed is flat or sparse
+      // Attempt 2: hourly OHLCV — pick the last close of each UTC day
       try {
-        const ohlcvHourly = birdeyeKey ? await getOHLCV(trimmed, birdeyeKey, 7, '1H').catch(() => []) : []
-        const byDay = new Map<string, number>()
+        const ohlcvHourly = birdeyeKey
+          ? await getOHLCV(trimmed, birdeyeKey, 7, '1H').catch(() => [])
+          : []
+        const byDay = new Map()
         for (const p of ohlcvHourly) {
-          const key = new Date(p.unixTime * 1000).toISOString().slice(0, 10)
-          byDay.set(key, p.c)
+          if (p.c > 0) {
+            const key = new Date(p.unixTime * 1000).toISOString().slice(0, 10)
+            byDay.set(key, p.c)
+          }
         }
-        const dayCloses = Array.from(byDay.values()).slice(-7).filter((v) => v > 0)
-        const scaledHourly = buildScaledSeries(dayCloses)
-        if (scaledHourly) {
-          marketCap7d = scaledHourly
-          console.log(`[analyze] marketCap7d from hourly-derived closes: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
-        } else if (marketCap > 0) {
-          marketCap7d = Array(7).fill(marketCap)
-          console.warn('[analyze] No varying close history — flat mc line')
+        const dayCloses = Array.from(byDay.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .slice(-7)
+          .map(([, close]) => close)
+        const mcFromHourly = buildMcSeries(dayCloses)
+        if (mcFromHourly) {
+          marketCap7d = mcFromHourly
+          console.log(`[analyze] marketCap7d from hourly closes: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
         } else {
-          marketCap7d = Array(7).fill(0)
+          marketCap7d = marketCap > 0 ? Array(7).fill(marketCap) : Array(7).fill(0)
+          console.warn('[analyze] No usable price history — flat mc line')
         }
       } catch {
         marketCap7d = marketCap > 0 ? Array(7).fill(marketCap) : Array(7).fill(0)
