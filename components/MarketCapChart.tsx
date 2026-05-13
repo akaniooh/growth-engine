@@ -19,20 +19,20 @@ function fmtMC(n: number): string {
 }
 
 export function MarketCapChart({ data, current, symbol }: MarketCapChartProps) {
+  const series = data.length > 0 ? data : (current > 0 ? Array(7).fill(current) : [])
+
   // Build labels for last N days
   const today  = new Date()
-  const labels = data.map((_, i) => {
+  const labels = series.map((_, i) => {
     const d = new Date(today)
-    d.setDate(today.getDate() - (data.length - 1 - i))
+    d.setDate(today.getDate() - (series.length - 1 - i))
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   })
-  const shortLabels = data.map((_, i) => {
+  const shortLabels = series.map((_, i) => {
     const d = new Date(today)
-    d.setDate(today.getDate() - (data.length - 1 - i))
+    d.setDate(today.getDate() - (series.length - 1 - i))
     return d.toLocaleDateString('en-US', { weekday: 'short' })
   })
-
-  const series = data.length > 0 ? data : (current > 0 ? Array(7).fill(current) : [])
 
   const chartData = series.map((v, i) => ({
     day:      shortLabels[i],

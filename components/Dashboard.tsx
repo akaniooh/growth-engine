@@ -90,18 +90,25 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
         if (hasRealData) {
           setData((prev) => ({
             ...fresh,
-            // Keep distribution from WalletTable (holders route) if we have it
+            // Keep holder-derived segments and AI outputs when available
             distribution: prev.distribution.some((d) => d.pct > 0)
               ? prev.distribution
               : fresh.distribution,
+            insights: realPcts ? prev.insights : fresh.insights,
+            actions: realPcts ? prev.actions : fresh.actions,
+            tweets: realPcts ? prev.tweets : fresh.tweets,
           }))
           setLastUpdated(new Date())
           setSecondsAgo(0)
+
+          if (realPcts) {
+            handleSegmentsLoaded(realPcts)
+          }
         }
       }
     } catch { /* silent fail */ }
     finally { if (!silent) setPolling(false) }
-  }, [])
+  }, [handleSegmentsLoaded, realPcts])
 
   // Auto-refresh every 90 seconds — but only if we have real data
   useEffect(() => {
