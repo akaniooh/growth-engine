@@ -107,47 +107,32 @@ export async function POST(req: NextRequest) {
       ? meta.supply
       : (marketCap > 0 && price > 0 ? marketCap / price : 0)
 
-        // Build 7-day market cap series from price history.
-    // Prefer relative scaling from closes so MC moves even when supply metadata is imperfect.
+    // Build 7-day market cap series from price history × supply
+    // Ensures real variation rather than a flat line
     let marketCap7d: number[]
-    const buildScaledSeries = (closes: number[]): number[] | null => {
-      if (!marketCap || marketCap <= 0 || closes.length < 2) return null
-      const lastClose = closes[closes.length - 1]
-      if (!lastClose || lastClose <= 0) return null
-      const varied = new Set(closes.map((v) => v.toFixed(12))).size > 1
-      if (!varied) return null
-      return closes.map((c) => Math.max(0, Math.round(marketCap * (c / lastClose))))
-    }
+    if (Array.isArray(ohlcv) && ohlcv.length >= 2 && circulatingSupply > 0) {
+      const points = ohlcv.slice(-7)
+      // Check that prices actually vary (not all identical)
+      const prices  = points.map((p) => p.c)
+      const minP    = Math.min(...prices)
+      const maxP    = Math.max(...prices)
+      const hasVariation = (maxP - minP) / (maxP || 1) > 0.0001
 
-    const dailyCloses = Array.isArray(ohlcv) ? ohlcv.slice(-7).map((p) => p.c).filter((v) => v > 0) : []
-    const scaledDaily = buildScaledSeries(dailyCloses)
-
-    if (scaledDaily) {
-      marketCap7d = scaledDaily
-      console.log(`[analyze] marketCap7d from daily closes: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
-    } else {
-      // Retry with hourly candles to derive day-end closes when daily feed is flat or sparse
-      try {
-        const ohlcvHourly = birdeyeKey ? await getOHLCV(trimmed, birdeyeKey, 7, '1H').catch(() => []) : []
-        const byDay = new Map<string, number>()
-        for (const p of ohlcvHourly) {
-          const key = new Date(p.unixTime * 1000).toISOString().slice(0, 10)
-          byDay.set(key, p.c)
-        }
-        const dayCloses = Array.from(byDay.values()).slice(-7).filter((v) => v > 0)
-        const scaledHourly = buildScaledSeries(dayCloses)
-        if (scaledHourly) {
-          marketCap7d = scaledHourly
-          console.log(`[analyze] marketCap7d from hourly-derived closes: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
-        } else if (marketCap > 0) {
-          marketCap7d = Array(7).fill(marketCap)
-          console.warn('[analyze] No varying close history — flat mc line')
-        } else {
-          marketCap7d = Array(7).fill(0)
-        }
-      } catch {
-        marketCap7d = marketCap > 0 ? Array(7).fill(marketCap) : Array(7).fill(0)
+      if (hasVariation) {
+        marketCap7d = points.map((p) =>
+          Math.max(0, Math.round(p.c * circulatingSupply))
+        )
+        console.log(`[analyze] marketCap7d from OHLCV: min=${Math.min(...marketCap7d)} max=${Math.max(...marketCap7d)}`)
+      } else {
+        // Prices are all the same — OHLCV returned flat data, use mc directly
+        console.warn('[analyze] OHLCV prices identical — no real history, using current mc')
+        marketCap7d = Array(7).fill(marketCap)
       }
+    } else if (marketCap > 0) {
+      marketCap7d = Array(7).fill(marketCap)
+      console.warn('[analyze] No OHLCV data — flat mc line')
+    } else {
+      marketCap7d = Array(7).fill(0)
     }
 
     const heatPeak = 'See holder data'
@@ -178,7 +163,7 @@ export async function POST(req: NextRequest) {
       marketCap,
       marketCap7d,
       heatPeak,
-      insights: buildInsights({ symbol, whalePct, activePct: activeT > 0 ? 100 : 0, newPct, dormantPct, priceUp, priceChange, volumeUp, volumeChange: volChange, heatPeak, networkActiveUsers: activeT }),
+      insights: buildInsights({ symbol, whalePct, activePct: 0, newPct, dormantPct, priceUp, priceChange, volumeUp, volumeChange: volChange, heatPeak }),
       actions:  buildActions({ symbol, whalePct, dormantPct, newPct, volumeUp, heatPeak }),
       tweets:   buildTweets({ symbol, holders, volume: fmtUSD(vol24h), priceUp, priceChange, volumeUp, dormantPct, whalePct, heatPeak }),
     }

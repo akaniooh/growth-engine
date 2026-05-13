@@ -6,10 +6,9 @@ import { Loader2, Download, ChevronDown } from 'lucide-react'
 import clsx from 'clsx'
 
 interface WalletTableProps {
-  mint:            string
-  symbol:          string
-  totalHolders:    number
-  onSegmentsLoaded?: (pcts: { whale: number; active: number; new: number; dormant: number }) => void
+  mint:         string
+  symbol:       string
+  totalHolders: number
 }
 
 const TYPE_CONFIG: Record<string, { label: string; className: string }> = {
@@ -55,7 +54,7 @@ function exportCSV(wallets: Wallet[], symbol: string) {
   URL.revokeObjectURL(url)
 }
 
-export function WalletTable({ mint, symbol, totalHolders, onSegmentsLoaded }: WalletTableProps) {
+export function WalletTable({ mint, symbol, totalHolders }: WalletTableProps) {
   const [filter, setFilter]       = useState<FilterType>('all')
   const [dropdownOpen, setDropdown] = useState(false)
   const [loading, setLoading]     = useState(false)
@@ -111,10 +110,6 @@ export function WalletTable({ mint, symbol, totalHolders, onSegmentsLoaded }: Wa
         loaded:  true,
         error:   '',
       })
-      // Report real segment percentages back to parent for AI insights
-      if (json.pcts && onSegmentsLoaded) {
-        onSegmentsLoaded(json.pcts)
-      }
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') return
       if (mintRef.current === currentMint) {
@@ -157,7 +152,7 @@ export function WalletTable({ mint, symbol, totalHolders, onSegmentsLoaded }: Wa
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border px-4 py-3.5 sm:px-5">
         <div>
-          <span className="label">Top 20 Holders</span>
+          <span className="label">Top 10 Holders</span>
           {totalHolders > 0 && (
             <span className="ml-2 font-mono text-[10px] text-ink-tertiary">
               of {totalHolders.toLocaleString()} total

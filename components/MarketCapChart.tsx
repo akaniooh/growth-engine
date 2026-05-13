@@ -19,32 +19,32 @@ function fmtMC(n: number): string {
 }
 
 export function MarketCapChart({ data, current, symbol }: MarketCapChartProps) {
-  const series = data.length > 0 ? data : (current > 0 ? Array(7).fill(current) : [])
-
   // Build labels for last N days
   const today  = new Date()
-  const labels = series.map((_, i) => {
+  const labels = data.map((_, i) => {
     const d = new Date(today)
-    d.setDate(today.getDate() - (series.length - 1 - i))
+    d.setDate(today.getDate() - (data.length - 1 - i))
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
   })
-  const shortLabels = series.map((_, i) => {
+  const shortLabels = data.map((_, i) => {
     const d = new Date(today)
-    d.setDate(today.getDate() - (series.length - 1 - i))
+    d.setDate(today.getDate() - (data.length - 1 - i))
     return d.toLocaleDateString('en-US', { weekday: 'short' })
   })
 
-  const chartData = series.map((v, i) => ({
+  const chartData = data.map((v, i) => ({
     day:      shortLabels[i],
     fullDate: labels[i],
     mc:       v,
   }))
 
-  const hasData  = series.some((v) => v > 0)
-  const minVal   = hasData ? Math.min(...series.filter((v) => v > 0)) : 0
-  const maxVal   = hasData ? Math.max(...series) : 0
-  const firstVal = series.find((v) => v > 0) ?? 0
-  const lastVal  = series[series.length - 1] ?? 0
+  const hasData  = data.some((v) => v > 0)
+  // Check if all values are identical (flat line = no real history)
+  const isFlat   = hasData && data.every((v) => Math.abs(v - data[0]) / (data[0] || 1) < 0.0001)
+  const minVal   = Math.min(...data.filter((v) => v > 0))
+  const maxVal   = Math.max(...data)
+  const firstVal = data.find((v) => v > 0) ?? 0
+  const lastVal  = data[data.length - 1] ?? 0
   const change   = firstVal > 0 ? ((lastVal - firstVal) / firstVal) * 100 : 0
   const up       = change >= 0
 
@@ -70,6 +70,18 @@ export function MarketCapChart({ data, current, symbol }: MarketCapChartProps) {
             </p>
             <p className="font-mono text-[10px] text-ink-tertiary opacity-60">
               Birdeye may not have historical data for this token yet
+            </p>
+          </div>
+        ) : isFlat ? (
+          <div className="flex h-44 flex-col items-center justify-center gap-2">
+            <p className="font-mono text-xs font-medium text-ink">
+              Current Market Cap: {fmtMC(current)}
+            </p>
+            <p className="font-mono text-[11px] text-ink-tertiary">
+              Historical price data not yet available for this token
+            </p>
+            <p className="font-mono text-[10px] text-ink-tertiary opacity-60">
+              Chart will populate as Birdeye indexes more daily candles
             </p>
           </div>
         ) : (

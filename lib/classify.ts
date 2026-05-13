@@ -136,72 +136,49 @@ export function buildInsights(params: {
   volumeUp:   boolean
   volumeChange: number
   heatPeak:   string
-  // Optional enriched fields
-  whaleCount?:  number
-  activeCount?: number
-  newCount?:    number
-  totalSampled?: number
-  buySellRatio?: number
-  networkActiveUsers?: number
 }): Insight[] {
-  const {
-    whalePct,
-    dormantPct,
-    newPct,
-    volumeUp,
-    volumeChange,
-    whaleCount,
-    activeCount,
-    newCount,
-    totalSampled,
-    networkActiveUsers,
-  } = params
-
-  const sampled = totalSampled ?? 20
-  const estimatedActive = activeCount ?? Math.round((params.activePct / 100) * sampled)
-  const activeWallets = networkActiveUsers && networkActiveUsers > 0 ? networkActiveUsers : estimatedActive
-  const newWallets = newCount ?? Math.round((newPct / 100) * sampled)
+  const { symbol: s, whalePct, dormantPct, newPct, priceUp, volumeUp, volumeChange, heatPeak } = params
+  const [peakDay, peakHour] = heatPeak.split(' ')
 
   return [
     {
-      tag: 'User / Network Activity',
+      tag: dormantPct > 50 ? 'Critical' : whalePct > 30 ? 'Concentration Risk' : 'Audience',
+      text: dormantPct > 50
+        ? `${dormantPct}% of $${s} holders are dormant. Volume has been declining — a re-engagement campaign is overdue.`
+        : whalePct > 30
+        ? `Top wallets hold ${whalePct}% of the sampled supply. High concentration increases exit risk on any single catalyst.`
+        : `Growth is driven by ${params.activePct}% active wallets. Whale concentration at ${whalePct}% is within a manageable range.`,
+      metric: dormantPct > 50 ? 'Dormant holder rate' : 'Whale concentration',
+      val:    dormantPct > 50 ? `${dormantPct}%` : `${whalePct}%`,
+      sentiment: dormantPct > 50 ? 'negative' : whalePct > 30 ? 'warning' : 'positive',
+    },
+    {
+      tag: 'Volume',
       text: volumeUp
-        ? `Network participation is strengthening: ${activeWallets} active wallets in the sampled holder set and 24h volume up ${volumeChange.toFixed(1)}%. This supports product-market pull.`
-        : `Network participation is softening: only ${activeWallets} active wallets in the sampled holder set and 24h volume down ${Math.abs(volumeChange).toFixed(1)}%. PMF signal is weakening.`,
-      metric: '24h participation trend',
-      val: `${activeWallets > 0 ? activeWallets.toLocaleString() : 'N/A'} active / ${volumeUp ? '+' : ''}${volumeChange.toFixed(1)}% vol`,
+        ? `24h volume is up ${volumeChange.toFixed(0)}% vs yesterday. This breakout window typically lasts 48–72h — act now to capitalise.`
+        : `Volume is down ${Math.abs(volumeChange).toFixed(0)}% vs yesterday. Focus on re-engagement before the next catalyst.`,
+      metric: 'Volume 24h change',
+      val: `${volumeUp ? '+' : ''}${volumeChange.toFixed(0)}%`,
       sentiment: volumeUp ? 'positive' : 'warning',
     },
     {
-      tag: 'Emissions vs Selling Pressure',
-      text: dormantPct > 55
-        ? `Dormancy is elevated (${dormantPct}%), which can convert into latent sell pressure if unlocked rewards/emissions are not absorbed by new demand.`
-        : `Dormancy is moderate (${dormantPct}%), suggesting current circulation is healthier and less likely to face abrupt emission-driven exits.`,
-      metric: 'Dormant holder share',
-      val: `${dormantPct}% dormant`,
-      sentiment: dormantPct > 55 ? 'warning' : 'neutral',
+      tag: 'New Buyers',
+      text: newPct < 8
+        ? `Only ${newPct}% new wallet inflow detected. A viral campaign or collab drop could inject fresh momentum.`
+        : `${newPct}% of wallets are new in the last 48h. Strong inflow — onboard them with clear utility or community hooks to retain them.`,
+      metric: 'New wallet inflow',
+      val: `${newPct}% of holders`,
+      sentiment: newPct < 8 ? 'warning' : 'positive',
     },
     {
-      tag: 'Holder Quality & Distribution',
-      text: whalePct > 35
-        ? `${whaleCount ?? 'Large'} whale cohort controls ${whalePct}% of supply. Conviction may be high, but community resilience is lower due to concentration risk.`
-        : `Whales control ${whalePct}% of supply with ${newWallets} new wallets recently added. Distribution is healthier for community-led conviction.`,
-      metric: 'Whale concentration',
-      val: `${whalePct}% controlled`,
-      sentiment: whalePct > 35 ? 'negative' : 'positive',
-    },
-    {
-      tag: 'Liquidity & Market Health',
-      text: volumeUp
-        ? `Improving turnover (volume +${volumeChange.toFixed(1)}%) suggests better market efficiency and easier entry/exit for participants.`
-        : `Lower turnover (volume ${volumeChange.toFixed(1)}%) points to thinner liquidity and weaker market efficiency; large trades may move price disproportionately.`,
-      metric: 'Liquidity proxy',
-      val: `${volumeUp ? 'Expanding' : 'Contracting'} flow`,
-      sentiment: volumeUp ? 'positive' : 'warning',
+      tag: 'Timing',
+      text: `On-chain activity peaks at ${peakHour} on ${peakDay}s UTC. Schedule major announcements and campaigns in this window for maximum reach.`,
+      metric: 'Peak activity window',
+      val: `${peakDay} ${peakHour}`,
+      sentiment: 'neutral',
     },
   ]
 }
-
 
 export function buildActions(params: {
   symbol:     string
