@@ -26,15 +26,14 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
   const mintRef    = useRef(initialData.mint)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Sync when a completely new token is searched
+  // Sync whenever parent provides a new analysis result.
+  // `seed` increments on every search, even if mint is unchanged.
   useEffect(() => {
-    if (initialData.mint !== mintRef.current) {
-      mintRef.current = initialData.mint
-      setData(initialData)
-      setLastUpdated(new Date())
-      setSecondsAgo(0)
-    }
-  }, [initialData.mint]) // eslint-disable-line
+    mintRef.current = initialData.mint
+    setData(initialData)
+    setLastUpdated(new Date())
+    setSecondsAgo(0)
+  }, [initialData, seed])
 
   // Seconds-ago counter
   useEffect(() => {
@@ -83,28 +82,24 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
       })
       if (!res.ok) return
       const json = await res.json()
-      // Only apply if it's still the same token and has real data
+      // Only apply if it's still the same token
       if (json.data && json.data.mint === mintRef.current) {
         const fresh = json.data as TokenData
-        // Only update if we're getting real non-zero data
-        const hasRealData = fresh.holders > 0 || fresh.price !== '$0.00' || fresh.volume !== '$0.00'
-        if (hasRealData) {
-          setData((prev) => ({
-            ...fresh,
-            // Keep holder-derived segments and AI outputs when available
-            distribution: prev.distribution.some((d) => d.pct > 0)
-              ? prev.distribution
-              : fresh.distribution,
-            insights: realPcts ? prev.insights : fresh.insights,
-            actions: realPcts ? prev.actions : fresh.actions,
-            tweets: realPcts ? prev.tweets : fresh.tweets,
-          }))
-          setLastUpdated(new Date())
-          setSecondsAgo(0)
+        setData((prev) => ({
+          ...fresh,
+          // Keep holder-derived segments and AI outputs when available
+          distribution: prev.distribution.some((d) => d.pct > 0)
+            ? prev.distribution
+            : fresh.distribution,
+          insights: realPcts ? prev.insights : fresh.insights,
+          actions: realPcts ? prev.actions : fresh.actions,
+          tweets: realPcts ? prev.tweets : fresh.tweets,
+        }))
+        setLastUpdated(new Date())
+        setSecondsAgo(0)
 
-          if (realPcts) {
-            handleSegmentsLoaded(realPcts)
-          }
+        if (realPcts) {
+          handleSegmentsLoaded(realPcts)
         }
       }
     } catch { /* silent fail */ }
