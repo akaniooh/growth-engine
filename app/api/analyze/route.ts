@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MOCK_DATA, TokenData } from '@/lib/data'
-import { getTokenMetadata } from '@/lib/helius'
-import { getTokenOverview, getOHLCV, getPriceHistoryFromCoinGecko } from '@/lib/birdeye'
+import { getTokenMetadata, getTokenHolders } from '@/lib/helius'
+import { getTokenOverview, getOHLCV, getPriceHistoryFromCoinGecko, getRecentTrades } from '@/lib/birdeye'
 import { buildInsights, buildActions, buildTweets } from '@/lib/classify'
 import { getDexSnapshot } from '@/lib/dexscreener'
 
@@ -78,6 +78,25 @@ export async function POST(req: NextRequest) {
     console.log(`[analyze] ohlcv items: ${Array.isArray(ohlcv) ? ohlcv.length : 0}`)
     console.log(`[analyze] meta: supply=${meta?.supply} decimals=${meta?.decimals}`)
 
+    // Fill missing holder/trader stats with fallbacks when Birdeye is sparse.
+    let fallbackHolders = 0
+    let fallbackActiveTraders = 0
+
+    if (overview?.holder == null || overview.holder <= 0) {
+      try {
+        const top = await getTokenHolders(trimmed, heliusKey)
+        fallbackHolders = top.length
+      } catch { /* ignore */ }
+    }
+
+    if ((overview?.uniqueWallet24h == null || overview.uniqueWallet24h <= 0) && birdeyeKey) {
+      try {
+        const recent = await getRecentTrades(trimmed, birdeyeKey, 80)
+        const uniq = new Set(recent.map((t) => t.from).filter(Boolean))
+        fallbackActiveTraders = uniq.size
+      } catch { /* ignore */ }
+    }
+
     const symbol = (overview?.symbol ?? dex?.symbol ?? meta?.symbol ?? trimmed.slice(0, 4).toUpperCase()).trim()
     const name   = (overview?.name   ?? dex?.name ?? meta?.name   ?? symbol).trim()
 
@@ -87,8 +106,8 @@ export async function POST(req: NextRequest) {
     const vol24h      = overview?.v24hUSD ?? dex?.v24hUSD ?? 0
     const volChange   = overview?.v24hChangePercent ?? 0
     const volumeUp    = volChange >= 0
-    const holders     = overview?.holder ?? 0
-    const activeT     = overview?.uniqueWallet24h ?? 0
+    const holders     = overview?.holder && overview.holder > 0 ? overview.holder : fallbackHolders
+    const activeT     = overview?.uniqueWallet24h && overview.uniqueWallet24h > 0 ? overview.uniqueWallet24h : fallbackActiveTraders
 
     // Market cap: prefer Birdeye's mc field directly
     // Birdeye may call it 'mc', 'marketCap', or 'market_cap' depending on version
