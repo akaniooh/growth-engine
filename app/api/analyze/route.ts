@@ -52,7 +52,14 @@ export async function POST(req: NextRequest) {
 
   if (!heliusKey || heliusKey === 'your_helius_api_key_here') {
     return NextResponse.json(
-      { error: 'HELIUS_API_KEY not configured.', setup: 'Add HELIUS_API_KEY to .env.local — get one free at https://helius.dev' },
+      { error: 'HELIUS_API_KEY not configured.', setup: 'Add HELIUS_API_KEY to Vercel Project Settings → Environment Variables, then redeploy.' },
+      { status: 503 }
+    )
+  }
+
+  if (!birdeyeKey || birdeyeKey === 'your_birdeye_api_key_here') {
+    return NextResponse.json(
+      { error: 'BIRDEYE_API_KEY not configured.', setup: 'Add BIRDEYE_API_KEY to Vercel Project Settings → Environment Variables, then redeploy.' },
       { status: 503 }
     )
   }
@@ -60,8 +67,8 @@ export async function POST(req: NextRequest) {
   try {
     const [meta, overview, ohlcv] = await Promise.all([
       getTokenMetadata(trimmed, heliusKey).catch(() => null),
-      birdeyeKey ? getTokenOverview(trimmed, birdeyeKey).catch(() => null) : Promise.resolve(null),
-      birdeyeKey ? getOHLCV(trimmed, birdeyeKey, 7).catch(() => []) : Promise.resolve([]),
+      getTokenOverview(trimmed, birdeyeKey).catch(() => null),
+      getOHLCV(trimmed, birdeyeKey, 7).catch(() => []),
     ])
 
     if (!overview && !meta) {
