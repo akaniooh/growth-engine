@@ -1,9 +1,10 @@
 import { Insight } from '@/lib/data'
 import { AlertTriangle, TrendingUp, Info } from 'lucide-react'
+import { MemoryContextBanner } from './MemoryContextBanner'
 import clsx from 'clsx'
 
 interface InsightsProps {
-  insights: Insight[]
+  insights: (Insight & { memoryContext?: string })[]
 }
 
 const SENTIMENT_CONFIG = {
@@ -35,7 +36,10 @@ export function AIInsights({ insights }: InsightsProps) {
                 </span>
               </div>
               <p className="mb-4 text-sm leading-relaxed text-ink-secondary">{ins.text}</p>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-surface-border pt-3">
+              {ins.memoryContext && (
+                <MemoryContextBanner context={ins.memoryContext} />
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-surface-border pt-3 mt-3">
                 <span className="font-mono text-[10px] text-ink-tertiary">{ins.metric}</span>
                 <span className={clsx('font-mono text-[11px] font-medium', cfg.valClass)}>{ins.val}</span>
               </div>

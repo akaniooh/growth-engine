@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { MOCK_DATA } from '@/lib/data'
 import { buildInsights, buildActions, buildTweets } from '@/lib/classify'
 import { getTokenOverview } from '@/lib/birdeye'
+import { buildMemoryContext, detectPatterns, loadMemory } from '@/lib/memory'
 
 export async function POST(req: NextRequest) {
   const { mint, pcts } = await req.json()
@@ -87,5 +88,32 @@ export async function POST(req: NextRequest) {
     heatPeak,
   })
 
-  return NextResponse.json({ insights, actions, tweets })
+  // ── Founder Memory: inject context into outputs ──────────────────────────
+  const memContext = buildMemoryContext(mint, [])
+  const mem = loadMemory(mint)
+  const patterns = detectPatterns(mem.events)
+
+  // Prepend memory context note to first insight if relevant history exists
+  const memoryEnrichedInsights = memContext
+    ? insights.map((ins, i) => {
+        if (i !== 0) return ins
+        return {
+          ...ins,
+          memoryContext: memContext,
+        }
+      })
+    : insights
+
+  return NextResponse.json({
+    insights: memoryEnrichedInsights,
+    actions,
+    tweets,
+    // Memory data passed alongside for UI to render
+    memory: {
+      has_context: memContext.length > 0,
+      event_count: mem.events.length,
+      founder_goals: mem.founder_goals,
+      patterns: patterns.slice(0, 3),
+    },
+  })
 }

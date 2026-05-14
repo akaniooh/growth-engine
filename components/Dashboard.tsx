@@ -8,6 +8,7 @@ import { WalletTable } from './WalletTable'
 import { AIInsights } from './AIInsights'
 import { ActionEngine } from './ActionEngine'
 import { ContentGenerator } from './ContentGenerator'
+import { FounderMemory } from './FounderMemory'
 import { RefreshCw } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -176,6 +177,10 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
       <AIInsights insights={data.insights} />
       <ActionEngine actions={data.actions} />
       <ContentGenerator tweets={data.tweets} symbol={data.symbol} />
+
+      <div className="border-t border-surface-border" />
+
+      <FounderMemory mint={data.mint} symbol={data.symbol} />
     </div>
   )
 }
