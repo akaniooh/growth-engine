@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { TrendingUp, Zap, Users, BarChart2, ArrowRight, Shield, Activity, ChevronDown, Brain, Clock } from 'lucide-react'
+import { Zap, Users, BarChart2, ArrowRight, Shield, Activity, ChevronDown, Brain, Clock } from 'lucide-react'
+import { RoverLogo } from '@/components/RoverLogo'
 import Link from 'next/link'
 
 function useCounter(target: number, duration = 2000, start = false) {
@@ -176,7 +177,7 @@ function MemoryPreview() {
           background: 'rgba(91,110,245,0.07)', border: '1px solid rgba(91,110,245,0.2)',
           borderRadius: 8, padding: '10px 12px', display: 'flex', gap: 8, alignItems: 'flex-start',
         }}>
-          <TrendingUp size={12} color="#5b6ef5" strokeWidth={1.5} style={{ marginTop: 2, flexShrink: 0 }} />
+          <RoverLogo size={50} color="#5b6ef5" />
           <p style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#8888c0', lineHeight: 1.6, margin: 0 }}>
             Liquidity actions have produced stronger retention than reward-based incentives for this token.
           </p>
@@ -208,7 +209,7 @@ export default function LandingPage() {
         /* NAV */
         .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 18px 40px; background: rgba(8,8,16,0.8); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); }
         .nav-logo { display: flex; align-items: center; gap: 10px; font-family: var(--sans); font-size: 15px; font-weight: 800; letter-spacing: -0.5px; color: var(--ink); text-decoration: none; }
-        .nav-dot { width: 28px; height: 28px; background: var(--brand); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .nav-dot { width: 32px; height: 32px; background: #000; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
         .nav-links a { font-family: var(--mono); font-size: 12px; color: var(--muted); text-decoration: none; transition: color 0.2s; }
         .nav-links a:hover { color: var(--ink); }
@@ -355,8 +356,8 @@ export default function LandingPage() {
       {/* NAV */}
       <nav className="nav">
         <Link href="/" className="nav-logo">
-          <div className="nav-dot"><TrendingUp size={14} color="white" strokeWidth={2.5} /></div>
-          Growth Engine
+          <div className="nav-dot"><RoverLogo size={32} /></div>
+          ROVER
         </Link>
         <ul className="nav-links">
           <li><a href="#features">Features</a></li>
@@ -405,7 +406,7 @@ export default function LandingPage() {
               <div className="preview-dot" style={{ background: '#ff5f57' }} />
               <div className="preview-dot" style={{ background: '#ffbd2e' }} />
               <div className="preview-dot" style={{ background: '#28ca41' }} />
-              <span className="preview-title">Growth Engine — BONK / $BONK</span>
+              <span className="preview-title">ROVER — BONK / $BONK</span>
             </div>
             <div className="preview-metrics">
               {[
@@ -489,7 +490,7 @@ export default function LandingPage() {
                   desc: 'Log every action you take — airdrops, partnerships, burns, lock-ups. Record what worked and what didn\'t.'
                 },
                 {
-                  icon: TrendingUp,
+                  icon: Activity,
                   color: '#00d4aa',
                   title: 'Pattern Detection',
                   desc: 'AI analyzes your history and surfaces real behavioral patterns: recurring risks, what\'s working, and goal alignment.'
@@ -547,14 +548,14 @@ export default function LandingPage() {
             Free to use. No wallet required. Paste your token address and start building intelligence that compounds over time.
           </p>
           <Link href="/dashboard" className="btn-primary" style={{ fontSize: '16px', padding: '16px 36px' }}>
-            Launch Growth Engine <ArrowRight size={18} />
+            Launch ROVER <ArrowRight size={18} />
           </Link>
         </div>
       </section>
 
       {/* FOOTER */}
       <footer className="footer">
-        <div className="footer-copy">© 2025 Growth Engine · Built on Solana</div>
+        <div className="footer-copy">© 2025 ROVER · Built on Solana</div>
         <div className="footer-links">
           <a href="https://helius.dev" target="_blank" rel="noopener noreferrer">Helius</a>
           <a href="https://birdeye.so" target="_blank" rel="noopener noreferrer">Birdeye</a>

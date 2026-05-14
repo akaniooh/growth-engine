@@ -5,7 +5,7 @@ import { Header } from '@/components/Header'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Growth Engine — Creator Analytics',
+  title: 'ROVER — Creator Analytics',
   description: 'On-chain creator growth intelligence for Solana tokens',
 }
 

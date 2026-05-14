@@ -8,7 +8,7 @@ export function EmptyState() {
       </div>
 
       <h1 className="mb-2 text-lg font-semibold tracking-tight text-ink sm:text-xl">
-        Creator Growth Engine
+        ROVER
       </h1>
       <p className="mb-8 max-w-sm text-sm leading-relaxed text-ink-secondary sm:mb-12 sm:max-w-md">
         Enter a Solana token address or symbol to analyse your holder base,
