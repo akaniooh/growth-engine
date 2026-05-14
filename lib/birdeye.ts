@@ -49,6 +49,33 @@ function str(raw: BirdeyeRaw, ...keys: string[]): string {
   return ''
 }
 
+
+function pickOverviewNode(json: unknown): BirdeyeRaw {
+  const root = (json ?? {}) as Record<string, unknown>
+  const data = (root.data ?? root) as Record<string, unknown>
+
+  const candidates: unknown[] = [
+    data,
+    data.data,
+    data.tokenOverview,
+    data.token_overview,
+    data.overview,
+    data.result,
+  ]
+
+  for (const c of candidates) {
+    if (c && typeof c === 'object') {
+      const obj = c as BirdeyeRaw
+      const hasSignal =
+        obj.price != null || obj.lastPrice != null || obj.currentPrice != null ||
+        obj.v24hUSD != null || obj.volume24hUSD != null || obj.mc != null || obj.marketCap != null
+      if (hasSignal) return obj
+    }
+  }
+
+  return data
+}
+
 function normalise(raw: BirdeyeRaw): BirdeyeTokenOverview {
   return {
     price:                 num(raw, 'price', 'lastPrice', 'currentPrice', 'priceUsd', 'price_usd'),
@@ -74,7 +101,7 @@ export async function getTokenOverview(
   )
   if (!res.ok) throw new Error(`Birdeye ${res.status}`)
   const json = await res.json()
-  const raw: BirdeyeRaw = json?.data ?? json ?? {}
+  const raw: BirdeyeRaw = pickOverviewNode(json)
   console.log('[birdeye] raw keys:', Object.keys(raw).slice(0, 20).join(', '))
   console.log('[birdeye] price:', raw.price, '| mc:', raw.mc, '| holder:', raw.holder)
   return normalise(raw)
