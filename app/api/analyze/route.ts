@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MOCK_DATA, TokenData } from '@/lib/data'
-import { getTokenMetadata, getTokenHolders } from '@/lib/helius'
-import { getTokenOverview, getOHLCV, getPriceHistoryFromCoinGecko, getRecentTrades } from '@/lib/birdeye'
+import { getTokenMetadata } from '@/lib/helius'
+import { getTokenOverview, getOHLCV, getPriceHistoryFromCoinGecko } from '@/lib/birdeye'
 import { buildInsights, buildActions, buildTweets } from '@/lib/classify'
-import { getDexSnapshot } from '@/lib/dexscreener'
 
 const SOLANA_ADDR_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
 
@@ -58,16 +57,21 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  if (!birdeyeKey || birdeyeKey === 'your_birdeye_api_key_here') {
+    return NextResponse.json(
+      { error: 'BIRDEYE_API_KEY not configured.', setup: 'Add BIRDEYE_API_KEY to Vercel Project Settings → Environment Variables, then redeploy.' },
+      { status: 503 }
+    )
+  }
 
   try {
-    const [meta, overview, ohlcv, dex] = await Promise.all([
+    const [meta, overview, ohlcv] = await Promise.all([
       getTokenMetadata(trimmed, heliusKey).catch(() => null),
-      birdeyeKey ? getTokenOverview(trimmed, birdeyeKey).catch(() => null) : Promise.resolve(null),
-      birdeyeKey ? getOHLCV(trimmed, birdeyeKey, 7).catch(() => []) : Promise.resolve([]),
-      getDexSnapshot(trimmed).catch(() => null),
+      getTokenOverview(trimmed, birdeyeKey).catch(() => null),
+      getOHLCV(trimmed, birdeyeKey, 7).catch(() => []),
     ])
 
-    if (!overview && !meta && !dex) {
+    if (!overview && !meta) {
       return NextResponse.json(
         { error: 'Token not found. Verify this is a valid SPL token mint on Solana mainnet.' },
         { status: 404 }
@@ -78,36 +82,17 @@ export async function POST(req: NextRequest) {
     console.log(`[analyze] ohlcv items: ${Array.isArray(ohlcv) ? ohlcv.length : 0}`)
     console.log(`[analyze] meta: supply=${meta?.supply} decimals=${meta?.decimals}`)
 
-    // Fill missing holder/trader stats with fallbacks when Birdeye is sparse.
-    let fallbackHolders = 0
-    let fallbackActiveTraders = 0
+    const symbol = (overview?.symbol ?? meta?.symbol ?? trimmed.slice(0, 4).toUpperCase()).trim()
+    const name   = (overview?.name   ?? meta?.name   ?? symbol).trim()
 
-    if (overview?.holder == null || overview.holder <= 0) {
-      try {
-        const top = await getTokenHolders(trimmed, heliusKey)
-        fallbackHolders = top.length
-      } catch { /* ignore */ }
-    }
-
-    if ((overview?.uniqueWallet24h == null || overview.uniqueWallet24h <= 0) && birdeyeKey) {
-      try {
-        const recent = await getRecentTrades(trimmed, birdeyeKey, 80)
-        const uniq = new Set(recent.map((t) => t.from).filter(Boolean))
-        fallbackActiveTraders = uniq.size
-      } catch { /* ignore */ }
-    }
-
-    const symbol = (overview?.symbol ?? dex?.symbol ?? meta?.symbol ?? trimmed.slice(0, 4).toUpperCase()).trim()
-    const name   = (overview?.name   ?? dex?.name ?? meta?.name   ?? symbol).trim()
-
-    const price       = overview?.price ?? dex?.price ?? 0
-    const priceChange = overview?.priceChange24hPercent ?? dex?.priceChange24hPercent ?? 0
+    const price       = overview?.price ?? 0
+    const priceChange = overview?.priceChange24hPercent ?? 0
     const priceUp     = priceChange >= 0
-    const vol24h      = overview?.v24hUSD ?? dex?.v24hUSD ?? 0
+    const vol24h      = overview?.v24hUSD ?? 0
     const volChange   = overview?.v24hChangePercent ?? 0
     const volumeUp    = volChange >= 0
-    const holders     = overview?.holder && overview.holder > 0 ? overview.holder : fallbackHolders
-    const activeT     = overview?.uniqueWallet24h && overview.uniqueWallet24h > 0 ? overview.uniqueWallet24h : fallbackActiveTraders
+    const holders     = overview?.holder ?? 0
+    const activeT     = overview?.uniqueWallet24h ?? 0
 
     // Market cap: prefer Birdeye's mc field directly
     // Birdeye may call it 'mc', 'marketCap', or 'market_cap' depending on version
@@ -115,7 +100,6 @@ export async function POST(req: NextRequest) {
     const marketCap = rawOverview?.mc
       ?? rawOverview?.marketCap
       ?? rawOverview?.market_cap
-      ?? dex?.marketCap
       ?? (price > 0 && meta?.supply ? price * meta.supply : 0)
 
     console.log(`[analyze] marketCap computed: ${marketCap}`)
