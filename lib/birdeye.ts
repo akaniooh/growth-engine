@@ -51,16 +51,16 @@ function str(raw: BirdeyeRaw, ...keys: string[]): string {
 
 function normalise(raw: BirdeyeRaw): BirdeyeTokenOverview {
   return {
-    price:                 num(raw, 'price', 'lastPrice', 'currentPrice'),
-    priceChange24hPercent: num(raw, 'priceChange24hPercent', 'price24hChangePercent', 'priceChangePercent', 'priceChange24h'),
-    v24hUSD:               num(raw, 'v24hUSD', 'volume24hUSD', 'volumeUSD', 'v24h', 'volume24h'),
-    v24hChangePercent:     num(raw, 'v24hChangePercent', 'volume24hChangePercent', 'volumeChangePercent'),
-    holder:                num(raw, 'holder', 'holders', 'holderCount', 'numberOfHolders'),
+    price:                 num(raw, 'price', 'lastPrice', 'currentPrice', 'priceUsd', 'price_usd'),
+    priceChange24hPercent: num(raw, 'priceChange24hPercent', 'price24hChangePercent', 'priceChangePercent', 'priceChange24h', 'price_change_24h_percent', 'price_change_24h'),
+    v24hUSD:               num(raw, 'v24hUSD', 'volume24hUSD', 'volumeUSD', 'v24h', 'volume24h', 'volume_24h_usd', 'v24h_usd', 'trade24h'),
+    v24hChangePercent:     num(raw, 'v24hChangePercent', 'volume24hChangePercent', 'volumeChangePercent', 'volume_change_24h_percent', 'v24h_change_percent'),
+    holder:                num(raw, 'holder', 'holders', 'holderCount', 'numberOfHolders', 'holder_count', 'unique_holders'),
     mc:                    num(raw, 'mc', 'marketCap', 'market_cap', 'fdv'),
     liquidity:             num(raw, 'liquidity', 'liquidityUSD'),
-    uniqueWallet24h:       num(raw, 'uniqueWallet24h', 'uniqueWallets24h', 'uniqueWallet24hCount', 'trade24h'),
-    symbol:                str(raw, 'symbol'),
-    name:                  str(raw, 'name'),
+    uniqueWallet24h:       num(raw, 'uniqueWallet24h', 'uniqueWallets24h', 'uniqueWallet24hCount', 'trade24h', 'unique_wallet_24h', 'traders24h', 'trade_24h_count'),
+    symbol:                str(raw, 'symbol', 'tokenSymbol', 'token_symbol'),
+    name:                  str(raw, 'name', 'tokenName', 'token_name'),
   }
 }
 
