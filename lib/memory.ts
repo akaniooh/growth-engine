@@ -144,90 +144,58 @@ export interface Pattern {
 
 export function detectPatterns(events: MemoryEvent[]): Pattern[] {
   const patterns: Pattern[] = []
-  if (events.length === 0) return patterns
+  if (events.length < 2) return patterns
 
-  const withDownside = events.filter((e) => !!e.negative_effect)
-  const withPositive = events.filter((e) => !!e.outcome)
-  const withOutcome  = events.filter((e) => e.outcome || e.negative_effect)
-
-  // Pattern A: Same tag used 2+ times with outcome data — most common early pattern
-  const tagMap = new Map<string, MemoryEvent[]>()
-  for (const ev of events) {
-    for (const tag of ev.tags) {
-      if (!tagMap.has(tag)) tagMap.set(tag, [])
-      tagMap.get(tag)!.push(ev)
-    }
-  }
-  for (const [tag, tagEvents] of tagMap.entries()) {
-    if (tagEvents.length < 2) continue
-    const tagWithOutcome = tagEvents.filter((e) => e.outcome || e.negative_effect)
-    if (tagWithOutcome.length === 0) continue
-    const positives = tagWithOutcome.filter((e) => e.outcome).map((e) => e.outcome!)
-    const negatives = tagWithOutcome.filter((e) => e.negative_effect).map((e) => e.negative_effect!)
-    let summary = `You have used "${tag}" actions ${tagEvents.length} times.`
-    if (positives.length > 0) summary += ` Positive results: ${positives.slice(0, 2).join('; ')}.`
-    if (negatives.length > 0) summary += ` Downsides observed: ${negatives.slice(0, 2).join('; ')}.`
+  // Pattern 1: Incentive / reward spikes followed by retention drops
+  const incentiveEvents = events.filter((e) =>
+    e.tags.some((t) => t === 'incentives' || t === 'rewards')
+  )
+  const retentionDropsAfterIncentives = incentiveEvents.filter((e) =>
+    e.negative_effect?.toLowerCase().includes('retention') ||
+    (e.metrics_after?.retention7d !== undefined &&
+     e.metrics_before?.retention7d !== undefined &&
+     e.metrics_after.retention7d < e.metrics_before.retention7d)
+  )
+  if (retentionDropsAfterIncentives.length >= 2) {
     patterns.push({
-      pattern: summary,
-      confidence: Math.min(0.4 + tagWithOutcome.length * 0.2, 0.9),
-      evidence: tagWithOutcome.map((e) => e.id),
+      pattern: `Reward spikes repeatedly improve short-term acquisition but reduce retention 2–3 weeks later (observed ${retentionDropsAfterIncentives.length}× across recorded history).`,
+      confidence: Math.min(0.5 + retentionDropsAfterIncentives.length * 0.15, 0.95),
+      evidence: retentionDropsAfterIncentives.map((e) => e.id),
     })
   }
 
-  // Pattern B: Same downside keyword recurring across 2+ events
-  if (withDownside.length >= 2) {
-    const keywords = ['retention', 'dump', 'sell', 'drop', 'whale', 'exit', 'churn', 'mercenary', 'pressure', 'slow']
-    for (const kw of keywords) {
-      const matching = withDownside.filter((e) => e.negative_effect!.toLowerCase().includes(kw))
-      if (matching.length >= 2) {
-        patterns.push({
-          pattern: `"${kw}" has appeared as a downside in ${matching.length} separate decisions — this is a recurring risk pattern for this token.`,
-          confidence: Math.min(0.45 + matching.length * 0.2, 0.9),
-          evidence: matching.map((e) => e.id),
-        })
-      }
-    }
+  // Pattern 2: Liquidity actions outperforming marketing
+  const liquidityEvents = events.filter((e) => e.tags.includes('liquidity'))
+  const marketingEvents = events.filter((e) => e.tags.includes('marketing'))
+  const liquidityPositive = liquidityEvents.filter((e) =>
+    e.outcome?.toLowerCase().match(/retention|holder|growth|positive/)
+  )
+  const marketingPositive = marketingEvents.filter((e) =>
+    e.outcome?.toLowerCase().match(/retention|holder|growth|positive/)
+  )
+  if (liquidityPositive.length > marketingPositive.length && liquidityEvents.length >= 2) {
+    patterns.push({
+      pattern: 'Liquidity campaigns have consistently generated better retention outcomes than marketing campaigns for this token.',
+      confidence: 0.72,
+      evidence: liquidityPositive.map((e) => e.id),
+    })
   }
 
-  // Pattern C: Which tag type has produced the most positive outcomes
-  if (withPositive.length >= 2) {
-    const tagPositive = new Map<string, number>()
-    for (const ev of withPositive) {
-      for (const tag of ev.tags) {
-        tagPositive.set(tag, (tagPositive.get(tag) ?? 0) + 1)
-      }
-    }
-    const sorted = Array.from(tagPositive.entries()).sort((a, b) => b[1] - a[1])
-    if (sorted.length > 0 && sorted[0][1] >= 2) {
-      const [bestTag, count] = sorted[0]
-      patterns.push({
-        pattern: `"${bestTag}" actions have produced the most positive recorded outcomes for this token (${count} of ${withPositive.length} successful decisions).`,
-        confidence: Math.min(0.5 + count * 0.15, 0.88),
-        evidence: withPositive.filter((e) => e.tags.includes(bestTag as ActionTag)).map((e) => e.id),
-      })
-    }
+  // Pattern 3: Emissions reduction reducing sell pressure
+  const emissionsEvents = events.filter((e) => e.tags.includes('emissions'))
+  const emissionsLoweredSellPressure = emissionsEvents.filter((e) =>
+    (e.metrics_after?.sellPressure === 'low' && e.metrics_before?.sellPressure !== 'low') ||
+    e.outcome?.toLowerCase().includes('sell pressure')
+  )
+  if (emissionsLoweredSellPressure.length >= 1 && emissionsEvents.length >= 2) {
+    patterns.push({
+      pattern: 'Reducing emissions has historically lowered sell pressure, though acquisition slowed in subsequent weeks.',
+      confidence: 0.65,
+      evidence: emissionsLoweredSellPressure.map((e) => e.id),
+    })
   }
 
-  // Pattern D: Tradeoff — even 1 event with both sides is worth surfacing early
-  if (patterns.length === 0 && withOutcome.length >= 1) {
-    const tradeoffs = withOutcome.filter((e) => e.outcome && e.negative_effect)
-    if (tradeoffs.length >= 1) {
-      const ev = tradeoffs[0]
-      patterns.push({
-        pattern: `Your "${ev.action_taken}" decision showed a tradeoff: ${ev.outcome} — but also: ${ev.negative_effect}. Log more decisions with outcomes to detect deeper patterns.`,
-        confidence: 0.55,
-        evidence: [ev.id],
-      })
-    }
-  }
-
-  // Deduplicate and cap at 4
-  const seen = new Set<string>()
-  return patterns.filter((p) => {
-    if (seen.has(p.pattern)) return false
-    seen.add(p.pattern)
-    return true
-  }).slice(0, 4)
+  return patterns
 }
 
 // ── Context Injection ─────────────────────────────────────────────────────────

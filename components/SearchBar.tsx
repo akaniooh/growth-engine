@@ -47,7 +47,7 @@ export function SearchBar({ onResult }: SearchBarProps) {
       const d = json.data as TokenData
 
       // If Birdeye returned zeros, wait 2s and retry once — Birdeye can be slow on first hit
-      const hasZeroData = d.price === '$0.00' && d.volume === '$0.00' && d.holders === 0
+      const hasZeroData = d.holders === 0 || (d.price === '$0.00' && d.volume === '$0.00')
       if (hasZeroData) {
         setLoadMsg('Waiting for market data…')
         await new Promise((r) => setTimeout(r, 2500))

@@ -5,16 +5,18 @@ const BIRDEYE_BASE = 'https://public-api.birdeye.so'
 type BirdeyeRaw = { [key: string]: unknown }
 
 export interface BirdeyeTokenOverview {
-  price:                 number
-  priceChange24hPercent: number
-  v24hUSD:               number
-  v24hChangePercent:     number
-  holder:                number
-  mc:                    number
-  liquidity:             number
-  uniqueWallet24h:       number
-  symbol:                string
-  name:                  string
+  price:                        number
+  priceChange24hPercent:        number
+  v24hUSD:                      number
+  v24hChangePercent:            number
+  holder:                       number
+  holderChange24h:              number
+  mc:                           number
+  liquidity:                    number
+  uniqueWallet24h:              number
+  uniqueWallet24hChangePercent: number
+  symbol:                       string
+  name:                         string
 }
 
 export interface BirdeyeTrade {
@@ -49,45 +51,20 @@ function str(raw: BirdeyeRaw, ...keys: string[]): string {
   return ''
 }
 
-
-function pickOverviewNode(json: unknown): BirdeyeRaw {
-  const root = (json ?? {}) as Record<string, unknown>
-  const data = (root.data ?? root) as Record<string, unknown>
-
-  const candidates: unknown[] = [
-    data,
-    data.data,
-    data.tokenOverview,
-    data.token_overview,
-    data.overview,
-    data.result,
-  ]
-
-  for (const c of candidates) {
-    if (c && typeof c === 'object') {
-      const obj = c as BirdeyeRaw
-      const hasSignal =
-        obj.price != null || obj.lastPrice != null || obj.currentPrice != null ||
-        obj.v24hUSD != null || obj.volume24hUSD != null || obj.mc != null || obj.marketCap != null
-      if (hasSignal) return obj
-    }
-  }
-
-  return data
-}
-
 function normalise(raw: BirdeyeRaw): BirdeyeTokenOverview {
   return {
-    price:                 num(raw, 'price', 'lastPrice', 'currentPrice', 'priceUsd', 'price_usd'),
-    priceChange24hPercent: num(raw, 'priceChange24hPercent', 'price24hChangePercent', 'priceChangePercent', 'priceChange24h', 'price_change_24h_percent', 'price_change_24h'),
-    v24hUSD:               num(raw, 'v24hUSD', 'volume24hUSD', 'volumeUSD', 'v24h', 'volume24h', 'volume_24h_usd', 'v24h_usd'),
-    v24hChangePercent:     num(raw, 'v24hChangePercent', 'volume24hChangePercent', 'volumeChangePercent', 'volume_change_24h_percent', 'v24h_change_percent'),
-    holder:                num(raw, 'holder', 'holders', 'holderCount', 'numberOfHolders', 'holder_count', 'unique_holders'),
-    mc:                    num(raw, 'mc', 'marketCap', 'market_cap', 'fdv'),
-    liquidity:             num(raw, 'liquidity', 'liquidityUSD'),
-    uniqueWallet24h:       num(raw, 'uniqueWallet24h', 'uniqueWallets24h', 'uniqueWallet24hCount', 'unique_wallet_24h', 'traders24h', 'trade_24h_count'),
-    symbol:                str(raw, 'symbol', 'tokenSymbol', 'token_symbol'),
-    name:                  str(raw, 'name', 'tokenName', 'token_name'),
+    price:                        num(raw, 'price', 'lastPrice', 'currentPrice'),
+    priceChange24hPercent:        num(raw, 'priceChange24hPercent', 'price24hChangePercent', 'priceChangePercent', 'priceChange24h'),
+    v24hUSD:                      num(raw, 'v24hUSD', 'volume24hUSD', 'volumeUSD', 'v24h', 'volume24h'),
+    v24hChangePercent:            num(raw, 'v24hChangePercent', 'volume24hChangePercent', 'volumeChangePercent'),
+    holder:                       num(raw, 'holder', 'holders', 'holderCount', 'numberOfHolders'),
+    holderChange24h:              num(raw, 'holderChange24h', 'holder24hChange', 'holdersChange24h', 'holderChanges24h'),
+    mc:                           num(raw, 'mc', 'marketCap', 'market_cap', 'fdv'),
+    liquidity:                    num(raw, 'liquidity', 'liquidityUSD'),
+    uniqueWallet24h:              num(raw, 'uniqueWallet24h', 'uniqueWallets24h', 'uniqueWallet24hCount', 'trade24h'),
+    uniqueWallet24hChangePercent: num(raw, 'uniqueWallet24hChangePercent', 'uniqueWallets24hChangePercent', 'uniqueWallet24hChange'),
+    symbol:                       str(raw, 'symbol'),
+    name:                         str(raw, 'name'),
   }
 }
 
@@ -101,7 +78,7 @@ export async function getTokenOverview(
   )
   if (!res.ok) throw new Error(`Birdeye ${res.status}`)
   const json = await res.json()
-  const raw: BirdeyeRaw = pickOverviewNode(json)
+  const raw: BirdeyeRaw = json?.data ?? json ?? {}
   console.log('[birdeye] raw keys:', Object.keys(raw).slice(0, 20).join(', '))
   console.log('[birdeye] price:', raw.price, '| mc:', raw.mc, '| holder:', raw.holder)
   return normalise(raw)

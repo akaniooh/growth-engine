@@ -26,14 +26,14 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
   const mintRef    = useRef(initialData.mint)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Sync whenever parent provides a new analysis result.
-  // `seed` increments on every search, even if mint is unchanged.
+  // Sync whenever a new analysis result arrives (new token OR same token re-analysed)
   useEffect(() => {
     mintRef.current = initialData.mint
     setData(initialData)
+    setRealPcts(null)
     setLastUpdated(new Date())
     setSecondsAgo(0)
-  }, [initialData, seed])
+  }, [initialData]) // eslint-disable-line
 
   // Seconds-ago counter
   useEffect(() => {
@@ -82,7 +82,7 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
       })
       if (!res.ok) return
       const json = await res.json()
-      // Only apply if it's still the same token
+      // Only apply if it's still the same token and has real data
       if (json.data && json.data.mint === mintRef.current) {
         const fresh = json.data as TokenData
         setData((prev) => ({

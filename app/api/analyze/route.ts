@@ -52,14 +52,7 @@ export async function POST(req: NextRequest) {
 
   if (!heliusKey || heliusKey === 'your_helius_api_key_here') {
     return NextResponse.json(
-      { error: 'HELIUS_API_KEY not configured.', setup: 'Add HELIUS_API_KEY to Vercel Project Settings → Environment Variables, then redeploy.' },
-      { status: 503 }
-    )
-  }
-
-  if (!birdeyeKey || birdeyeKey === 'your_birdeye_api_key_here') {
-    return NextResponse.json(
-      { error: 'BIRDEYE_API_KEY not configured.', setup: 'Add BIRDEYE_API_KEY to Vercel Project Settings → Environment Variables, then redeploy.' },
+      { error: 'HELIUS_API_KEY not configured.', setup: 'Add HELIUS_API_KEY to .env.local — get one free at https://helius.dev' },
       { status: 503 }
     )
   }
@@ -67,8 +60,8 @@ export async function POST(req: NextRequest) {
   try {
     const [meta, overview, ohlcv] = await Promise.all([
       getTokenMetadata(trimmed, heliusKey).catch(() => null),
-      getTokenOverview(trimmed, birdeyeKey).catch(() => null),
-      getOHLCV(trimmed, birdeyeKey, 7).catch(() => []),
+      birdeyeKey ? getTokenOverview(trimmed, birdeyeKey).catch(() => null) : Promise.resolve(null),
+      birdeyeKey ? getOHLCV(trimmed, birdeyeKey, 7).catch(() => []) : Promise.resolve([]),
     ])
 
     if (!overview && !meta) {
@@ -91,8 +84,11 @@ export async function POST(req: NextRequest) {
     const vol24h      = overview?.v24hUSD ?? 0
     const volChange   = overview?.v24hChangePercent ?? 0
     const volumeUp    = volChange >= 0
-    const holders     = overview?.holder ?? 0
-    const activeT     = overview?.uniqueWallet24h ?? 0
+    const holders         = overview?.holder ?? 0
+    const holderDelta     = overview?.holderChange24h ?? 0
+    const activeT         = overview?.uniqueWallet24h ?? 0
+    const activeTChgPct   = overview?.uniqueWallet24hChangePercent ?? 0
+    const activeTUp       = activeTChgPct >= 0
 
     // Market cap: prefer Birdeye's mc field directly
     // Birdeye may call it 'mc', 'marketCap', or 'market_cap' depending on version
@@ -190,8 +186,10 @@ export async function POST(req: NextRequest) {
     const data: TokenData = {
       name, symbol, mint: trimmed,
       holders,
-      holdersChange: holders > 0 ? `${holders.toLocaleString()}` : '—',
-      holdersUp: true,
+      holdersChange: holderDelta !== 0
+        ? `${holderDelta > 0 ? '+' : ''}${holderDelta.toLocaleString()}`
+        : '—',
+      holdersUp: holderDelta >= 0,
       volume: fmtUSD(vol24h),
       volumeChange: `${volumeUp ? '+' : ''}${volChange.toFixed(1)}%`,
       volumeUp,
@@ -199,8 +197,10 @@ export async function POST(req: NextRequest) {
       priceChange: `${priceUp ? '+' : ''}${priceChange.toFixed(2)}%`,
       priceUp,
       activeTraders: activeT,
-      activeTradersChange: `${activeT > 0 ? activeT.toLocaleString() : '—'}`,
-      activeTradersUp: true,
+      activeTradersChange: activeTChgPct !== 0
+        ? `${activeTUp ? '+' : ''}${activeTChgPct.toFixed(1)}%`
+        : '—',
+      activeTradersUp: activeTUp,
       wallets: [],
       distribution: [
         { label: 'Whales',  pct: 0,   color: '#4f6ef7' },

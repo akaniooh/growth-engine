@@ -22,20 +22,33 @@ export default function Home() {
         window.localStorage.getItem('last_token_query') ||
         window.sessionStorage.getItem('last_token_query')
       if (!token) return
-      try {
+
+      const fetchOnce = async () => {
         const res = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: token }),
         })
         const json = await res.json()
-        if (res.ok && json.data) {
-          setData(json.data as TokenData)
-          // Ensure URL param is set so future refreshes also restore correctly
-          const url = new URL(window.location.href)
-          url.searchParams.set('token', (json.data as TokenData).mint)
-          window.history.replaceState({}, '', url.toString())
+        return res.ok && json.data ? (json.data as TokenData) : null
+      }
+
+      try {
+        let d = await fetchOnce()
+        if (!d) return
+
+        // Retry once if Birdeye returned zeros (cold start / rate limit)
+        const hasZeroData = d.holders === 0 && d.price === '$0.00' && d.volume === '$0.00'
+        if (hasZeroData) {
+          await new Promise((r) => setTimeout(r, 2500))
+          const retry = await fetchOnce()
+          if (retry) d = retry
         }
+
+        setData(d)
+        const url = new URL(window.location.href)
+        url.searchParams.set('token', d.mint)
+        window.history.replaceState({}, '', url.toString())
       } catch { /* silent restore */ }
     }
     run()
