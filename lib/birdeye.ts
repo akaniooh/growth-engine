@@ -95,6 +95,16 @@ function normalise(raw: BirdeyeRaw): BirdeyeTokenOverview {
   }
 }
 
+// --- In-flight request dedup, keyed by address.
+// The Birdeye plan on this project is capped at 1 request/sec. Within a
+// single warm serverless instance, /api/analyze and /api/insights can both
+// call getTokenOverview for the same token within milliseconds of each
+// other (e.g. on page load). Without this, both calls would race past the
+// overviewCache (neither sees a cache hit yet) and both queue a real
+// Birdeye fetch. This map makes the second caller await the first
+// caller's in-flight promise instead of firing its own request.
+const pendingOverview = new Map<string, Promise<BirdeyeTokenOverview | null>>()
+
 export async function getTokenOverview(
   address: string,
   apiKey: string
@@ -105,6 +115,23 @@ export async function getTokenOverview(
     return cached.data
   }
 
+  const pending = pendingOverview.get(address)
+  if (pending) {
+    console.log('[birdeye] overview in-flight, reusing request')
+    return pending
+  }
+
+  const request = fetchTokenOverview(address, apiKey).finally(() => {
+    pendingOverview.delete(address)
+  })
+  pendingOverview.set(address, request)
+  return request
+}
+
+async function fetchTokenOverview(
+  address: string,
+  apiKey: string
+): Promise<BirdeyeTokenOverview | null> {
   const res = await throttledFetch(
     `${BIRDEYE_BASE}/defi/token_overview?address=${address}`,
     { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } }
