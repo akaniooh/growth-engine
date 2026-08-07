@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Zap, Users, BarChart2, ArrowRight, Shield, Activity, ChevronDown, Brain, Clock } from 'lucide-react'
+import { Zap, Users, BarChart2, ArrowRight, Shield, Activity, ChevronDown, Brain, Clock, Copy, Check } from 'lucide-react'
 import { RoverLogo } from '@/components/RoverLogo'
 import Link from 'next/link'
 
@@ -187,6 +187,47 @@ function MemoryPreview() {
   )
 }
 
+const ROVER_CA = '9BvZ9N8bn6SASqy1SvWrthPZz5kfZe9WSZPRBmwpump'
+
+function TokenBanner() {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(ROVER_CA)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard API unavailable — no-op
+    }
+  }
+
+  const short = `${ROVER_CA.slice(0, 4)}...${ROVER_CA.slice(-4)}`
+
+  return (
+    <section className="token-section">
+      <div className="token-card">
+        <div className="token-ticker-badge">
+          <span className="token-ticker-dot" />
+          $ROVER
+        </div>
+        <div className="token-divider" />
+        <div className="token-ca">
+          <span className="token-ca-label">CA</span>
+          <span title={ROVER_CA}>{short}</span>
+          <button
+            className={`token-ca-copy ${copied ? 'copied' : ''}`}
+            onClick={handleCopy}
+            aria-label="Copy contract address"
+          >
+            {copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function LandingPage() {
   const [heroVisible, setHeroVisible] = useState(false)
   useEffect(() => { const t = setTimeout(() => setHeroVisible(true), 100); return () => clearTimeout(t) }, [])
@@ -276,6 +317,23 @@ export default function LandingPage() {
         .wallet-badge.new     { background: rgba(245,158,11,0.1); color: var(--warn); border: 1px solid rgba(245,158,11,0.2); }
         .wallet-badge.dormant { background: rgba(104,104,160,0.1); color: var(--muted); border: 1px solid rgba(104,104,160,0.15); }
         .wallet-pct { color: var(--ink); font-weight: 700; text-align: right; }
+
+        /* TOKEN / CA */
+        .token-section { padding: 56px 40px; display: flex; justify-content: center; position: relative; z-index: 1; }
+        .token-card { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; justify-content: center; background: var(--bg2); border: 1px solid var(--border2); border-radius: 100px; padding: 14px 14px 14px 28px; box-shadow: 0 0 50px rgba(91,110,245,0.1); }
+        .token-ticker-badge { font-family: var(--sans); font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: var(--brand2); display: flex; align-items: center; gap: 8px; }
+        .token-ticker-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand2); animation: pulse 2s infinite; }
+        .token-divider { width: 1px; height: 24px; background: var(--border2); }
+        .token-ca-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
+        .token-ca { font-family: var(--mono); font-size: 12px; color: var(--ink); background: var(--bg3); border: 1px solid var(--border); border-radius: 100px; padding: 8px 8px 8px 16px; display: flex; align-items: center; gap: 10px; }
+        .token-ca-copy { display: flex; align-items: center; gap: 6px; background: var(--brand); color: white; border: none; border-radius: 100px; padding: 6px 14px; font-family: var(--mono); font-size: 11px; font-weight: 700; cursor: pointer; transition: opacity 0.2s; }
+        .token-ca-copy:hover { opacity: 0.85; }
+        .token-ca-copy.copied { background: var(--brand2); }
+        @media (max-width: 640px) {
+          .token-card { padding: 20px; border-radius: 20px; flex-direction: column; align-items: stretch; }
+          .token-divider { display: none; }
+          .token-ca { flex-wrap: wrap; justify-content: space-between; }
+        }
 
         /* STATS */
         .stats-section { padding: 80px 40px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
@@ -441,6 +499,8 @@ export default function LandingPage() {
           <ChevronDown size={14} color="var(--muted)" />
         </div>
       </section>
+
+      <TokenBanner />
 
       {/* STATS */}
       <section className="stats-section" id="stats">
