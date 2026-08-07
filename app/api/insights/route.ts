@@ -6,11 +6,15 @@ import { buildMemoryContext, detectPatterns, loadMemory } from '@/lib/memory'
 import { cleanEnv } from '@/lib/env'
 
 export async function POST(req: NextRequest) {
-  let mint = '', pcts
+  let mint = '', pcts, clientOverview: {
+    priceChange?: number; priceUp?: boolean; volumeChange?: number; volumeUp?: boolean
+    holders?: number; volume?: string; activeTraders?: number; symbol?: string
+  } | undefined
   try {
     const body = await req.json()
     mint = body?.mint
     pcts = body?.pcts
+    clientOverview = body?.overview
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
@@ -19,7 +23,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'mint and pcts required' }, { status: 400 })
   }
 
-  // Get current market data for accurate insights
+  // Get current market data for accurate insights.
+  // Prefer overview data the client already fetched via /api/analyze —
+  // avoids a duplicate Birdeye call that can trip the free-tier burst limit
+  // when both requests land on separate serverless instances.
   const birdeyeKey = cleanEnv(process.env.BIRDEYE_API_KEY)
   let symbol = mint.slice(0, 4).toUpperCase()
   let priceUp = true, priceChange = 0, volumeUp = true, volumeChange = 0
@@ -37,6 +44,17 @@ export async function POST(req: NextRequest) {
     holders     = demo.holders
     volume      = demo.volume
     networkActiveUsers = demo.activeTraders
+  } else if (clientOverview) {
+    // Client already has fresh data from /api/analyze — use it directly,
+    // no Birdeye call needed.
+    symbol       = clientOverview.symbol || symbol
+    priceChange  = parseFloat(String(clientOverview.priceChange ?? '0').replace('%', '').replace('+', ''))
+    priceUp      = clientOverview.priceUp ?? priceChange >= 0
+    volumeChange = parseFloat(String(clientOverview.volumeChange ?? '0').replace('%', '').replace('+', ''))
+    volumeUp     = clientOverview.volumeUp ?? volumeChange >= 0
+    holders      = clientOverview.holders ?? 0
+    volume       = clientOverview.volume ?? '$0'
+    networkActiveUsers = clientOverview.activeTraders ?? 0
   } else if (birdeyeKey) {
     try {
       const overview = await getTokenOverview(mint, birdeyeKey)

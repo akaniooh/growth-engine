@@ -24,6 +24,7 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [secondsAgo, setSecondsAgo]   = useState(0)
   const mintRef    = useRef(initialData.mint)
+  const dataRef     = useRef(initialData)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Sync whenever a new analysis result arrives (new token OR same token re-analysed)
@@ -34,6 +35,12 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
     setLastUpdated(new Date())
     setSecondsAgo(0)
   }, [initialData]) // eslint-disable-line
+
+  // Keep dataRef current so handleSegmentsLoaded always sees fresh data
+  // without needing to be re-created on every data change
+  useEffect(() => {
+    dataRef.current = data
+  }, [data])
 
   // Seconds-ago counter
   useEffect(() => {
@@ -51,7 +58,23 @@ export function Dashboard({ data: initialData, seed }: DashboardProps) {
       const res  = await fetch('/api/insights', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ mint: currentMint, pcts, enriched: true }),
+        body:    JSON.stringify({
+          mint: currentMint,
+          pcts,
+          enriched: true,
+          // Pass along data /api/analyze already fetched — avoids a
+          // duplicate Birdeye call for the same token seconds later.
+          overview: {
+            symbol:        dataRef.current.symbol,
+            priceChange:   dataRef.current.priceChange,
+            priceUp:       dataRef.current.priceUp,
+            volumeChange:  dataRef.current.volumeChange,
+            volumeUp:      dataRef.current.volumeUp,
+            holders:       dataRef.current.holders,
+            volume:        dataRef.current.volume,
+            activeTraders: dataRef.current.activeTraders,
+          },
+        }),
       })
       if (!res.ok) return
       const json = await res.json()
