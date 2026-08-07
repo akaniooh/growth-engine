@@ -139,7 +139,7 @@ async function fetchTokenOverview(
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     console.error(`[birdeye] overview failed: ${res.status} ${res.statusText} — ${body.slice(0, 200)}`)
-    throw new Error(`Birdeye ${res.status}`)
+    throw new Error(`Birdeye ${res.status}: ${body.slice(0, 300)}`)
   }
   const json = await res.json()
   const raw: BirdeyeRaw = json?.data ?? json ?? {}
