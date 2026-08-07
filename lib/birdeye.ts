@@ -2,6 +2,33 @@
 
 const BIRDEYE_BASE = 'https://public-api.birdeye.so'
 
+// --- Throttle: serialize all outgoing Birdeye requests with a minimum gap.
+// Free/starter Birdeye tiers commonly cap requests per second. When multiple
+// routes (e.g. /api/analyze and /api/insights) fire near-simultaneously,
+// parallel calls can 429 even though the monthly credit limit isn't close
+// to exhausted. This queue makes sure we never fire two Birdeye requests
+// less than MIN_INTERVAL_MS apart.
+const MIN_INTERVAL_MS = 1100
+let queue: Promise<unknown> = Promise.resolve()
+
+function throttledFetch(url: string, init: RequestInit): Promise<Response> {
+  const run = queue.then(async () => {
+    const res = await fetch(url, init)
+    await new Promise((r) => setTimeout(r, MIN_INTERVAL_MS))
+    return res
+  })
+  // Keep the queue chain alive even if this call errors, so later calls
+  // still wait their turn instead of firing immediately.
+  queue = run.catch(() => undefined)
+  return run
+}
+
+// --- Short-lived cache for token overview, keyed by address.
+// Prevents /api/analyze and /api/insights (called close together on page
+// load) from double-hitting Birdeye for the exact same token.
+const OVERVIEW_CACHE_TTL_MS = 20_000
+const overviewCache = new Map<string, { data: BirdeyeTokenOverview; expires: number }>()
+
 type BirdeyeRaw = { [key: string]: unknown }
 
 export interface BirdeyeTokenOverview {
@@ -72,16 +99,28 @@ export async function getTokenOverview(
   address: string,
   apiKey: string
 ): Promise<BirdeyeTokenOverview | null> {
-  const res = await fetch(
+  const cached = overviewCache.get(address)
+  if (cached && cached.expires > Date.now()) {
+    console.log('[birdeye] overview cache hit')
+    return cached.data
+  }
+
+  const res = await throttledFetch(
     `${BIRDEYE_BASE}/defi/token_overview?address=${address}`,
     { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } }
   )
-  if (!res.ok) throw new Error(`Birdeye ${res.status}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    console.error(`[birdeye] overview failed: ${res.status} ${res.statusText} — ${body.slice(0, 200)}`)
+    throw new Error(`Birdeye ${res.status}`)
+  }
   const json = await res.json()
   const raw: BirdeyeRaw = json?.data ?? json ?? {}
   console.log('[birdeye] raw keys:', Object.keys(raw).slice(0, 20).join(', '))
   console.log('[birdeye] price:', raw.price, '| mc:', raw.mc, '| holder:', raw.holder)
-  return normalise(raw)
+  const normalised = normalise(raw)
+  overviewCache.set(address, { data: normalised, expires: Date.now() + OVERVIEW_CACHE_TTL_MS })
+  return normalised
 }
 
 export interface OHLCVPoint {
@@ -104,7 +143,7 @@ export async function getPriceHistory(
   // history_price returns one real price point per interval, sorted ascending.
   try {
     const url = `${BIRDEYE_BASE}/defi/history_price?address=${address}&address_type=token&type=${interval}&time_from=${from}&time_to=${to}`
-    const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
+    const res = await throttledFetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
     if (res.ok) {
       const json = await res.json()
       const items: { unixTime: number; value: number }[] = json?.data?.items ?? json?.data ?? []
@@ -124,7 +163,8 @@ export async function getPriceHistory(
   // Method 2: /defi/ohlcv — try anyway as fallback
   try {
     const url = `${BIRDEYE_BASE}/defi/ohlcv?address=${address}&type=${interval}&time_from=${from}&time_to=${to}`
-    const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
+    const res = await throttledFetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
+    if (!res.ok) console.warn(`[birdeye] ohlcv http error: ${res.status} ${res.statusText}`)
     if (res.ok) {
       const json = await res.json()
       const items: OHLCVPoint[] = json?.data?.items ?? json?.data ?? json?.items ?? []
@@ -217,7 +257,7 @@ export async function getRecentTrades(
   // Method 1: /defi/txs/token — token transaction history
   try {
     const url = `${BIRDEYE_BASE}/defi/txs/token?address=${address}&tx_type=swap&sort_type=desc&limit=${limit}`
-    const res = await fetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
+    const res = await throttledFetch(url, { headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' } })
     if (res.ok) {
       const json = await res.json()
       const items: BirdeyeRaw[] = json?.data?.items ?? json?.data ?? []

@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   try {
     const [meta, overview, ohlcv] = await Promise.all([
       getTokenMetadata(trimmed, heliusKey).catch(() => null),
-      birdeyeKey ? getTokenOverview(trimmed, birdeyeKey).catch(() => null) : Promise.resolve(null),
+      birdeyeKey ? getTokenOverview(trimmed, birdeyeKey).catch((e) => { console.error('[analyze] overview fetch failed:', (e as Error).message); return null }) : Promise.resolve(null),
       birdeyeKey ? getOHLCV(trimmed, birdeyeKey, 7).catch(() => []) : Promise.resolve([]),
     ])
 
