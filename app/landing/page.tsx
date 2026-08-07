@@ -363,6 +363,7 @@ export default function LandingPage() {
           <li><a href="#features">Features</a></li>
           <li><a href="#memory">Memory</a></li>
           <li><a href="#how">How it works</a></li>
+          <li><a href="https://x.com/roversolai" target="_blank" rel="noopener noreferrer">X</a></li>
           <li><Link href="/dashboard" className="nav-cta">Launch App →</Link></li>
         </ul>
       </nav>
@@ -557,6 +558,7 @@ export default function LandingPage() {
       <footer className="footer">
         <div className="footer-copy">© 2025 ROVER · Built on Solana</div>
         <div className="footer-links">
+          <a href="https://x.com/roversolai" target="_blank" rel="noopener noreferrer">X</a>
           <a href="https://helius.dev" target="_blank" rel="noopener noreferrer">Helius</a>
           <a href="https://birdeye.so" target="_blank" rel="noopener noreferrer">Birdeye</a>
           <a href="https://docs.helius.dev" target="_blank" rel="noopener noreferrer">Docs</a>
