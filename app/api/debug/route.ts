@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cleanEnv } from '@/lib/env'
 
 export async function POST(req: NextRequest) {
   const { mint } = await req.json()
-  const apiKey = process.env.HELIUS_API_KEY
+  const apiKey = cleanEnv(process.env.HELIUS_API_KEY)
   if (!apiKey) return NextResponse.json({ error: 'No HELIUS_API_KEY' }, { status: 503 })
 
   // Fetch exactly 3 records so we can see the real shape

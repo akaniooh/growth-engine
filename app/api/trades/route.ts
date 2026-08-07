@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unstable_noStore as noStore } from 'next/cache'
+import { cleanEnv } from '@/lib/env'
 
 const HELIUS_BASE = 'https://api.helius.xyz'
 const HELIUS_RPC  = 'https://mainnet.helius-rpc.com'
@@ -139,10 +140,15 @@ function parseTx(tx: Record<string, unknown>, mint: string): ParsedTrade | null 
 export async function POST(req: NextRequest) {
   noStore()
 
-  const { mint } = await req.json()
+  let mint = ''
+  try {
+    mint = (await req.json())?.mint ?? ''
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  }
   if (!mint) return NextResponse.json({ error: 'mint required' }, { status: 400 })
 
-  const heliusKey = process.env.HELIUS_API_KEY
+  const heliusKey = cleanEnv(process.env.HELIUS_API_KEY)
   if (!heliusKey) return NextResponse.json({ error: 'HELIUS_API_KEY not configured' }, { status: 503 })
 
   // Demo tokens — return realistic mock heatmap data

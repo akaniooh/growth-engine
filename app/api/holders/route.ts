@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MOCK_DATA, Wallet, WalletType } from '@/lib/data'
 import { getTokenHolders, getTokenMetadata, getWalletTransactions } from '@/lib/helius'
+import { cleanEnv } from '@/lib/env'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,17 @@ async function buildHolderList(mint: string, apiKey: string): Promise<ProcessedH
 // ── Route ────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const { mint, symbol = '', filter = 'all' } = await req.json()
+  let mint = '', symbol = '', filter = 'all'
+  try {
+    const body = await req.json()
+    mint   = body?.mint ?? ''
+    symbol = body?.symbol ?? ''
+    filter = body?.filter ?? 'all'
+  } catch {
+    // Body can arrive truncated if the client aborts an in-flight request
+    // (WalletTable cancels stale fetches on rapid mint/filter changes).
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  }
   if (!mint) return NextResponse.json({ error: 'mint required' }, { status: 400 })
 
   // Demo tokens
@@ -131,7 +142,7 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  const heliusKey = process.env.HELIUS_API_KEY
+  const heliusKey = cleanEnv(process.env.HELIUS_API_KEY)
   if (!heliusKey || heliusKey === 'your_helius_api_key_here') {
     return NextResponse.json({ error: 'HELIUS_API_KEY not configured' }, { status: 503 })
   }

@@ -3,16 +3,24 @@ import { MOCK_DATA } from '@/lib/data'
 import { buildInsights, buildActions, buildTweets } from '@/lib/classify'
 import { getTokenOverview } from '@/lib/birdeye'
 import { buildMemoryContext, detectPatterns, loadMemory } from '@/lib/memory'
+import { cleanEnv } from '@/lib/env'
 
 export async function POST(req: NextRequest) {
-  const { mint, pcts } = await req.json()
+  let mint = '', pcts
+  try {
+    const body = await req.json()
+    mint = body?.mint
+    pcts = body?.pcts
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  }
 
   if (!mint || !pcts) {
     return NextResponse.json({ error: 'mint and pcts required' }, { status: 400 })
   }
 
   // Get current market data for accurate insights
-  const birdeyeKey = process.env.BIRDEYE_API_KEY
+  const birdeyeKey = cleanEnv(process.env.BIRDEYE_API_KEY)
   let symbol = mint.slice(0, 4).toUpperCase()
   let priceUp = true, priceChange = 0, volumeUp = true, volumeChange = 0
   let holders = 0, volume = '$0', networkActiveUsers = 0

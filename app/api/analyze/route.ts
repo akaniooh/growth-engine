@@ -3,6 +3,7 @@ import { MOCK_DATA, TokenData } from '@/lib/data'
 import { getTokenMetadata } from '@/lib/helius'
 import { getTokenOverview, getOHLCV, getPriceHistoryFromCoinGecko } from '@/lib/birdeye'
 import { buildInsights, buildActions, buildTweets } from '@/lib/classify'
+import { cleanEnv } from '@/lib/env'
 
 const SOLANA_ADDR_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
 
@@ -47,8 +48,8 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const heliusKey  = process.env.HELIUS_API_KEY
-  const birdeyeKey = process.env.BIRDEYE_API_KEY
+  const heliusKey  = cleanEnv(process.env.HELIUS_API_KEY)
+  const birdeyeKey = cleanEnv(process.env.BIRDEYE_API_KEY)
 
   if (!heliusKey || heliusKey === 'your_helius_api_key_here') {
     return NextResponse.json(

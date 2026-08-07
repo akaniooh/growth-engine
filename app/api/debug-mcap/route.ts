@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOHLCV, getTokenOverview } from '@/lib/birdeye'
+import { cleanEnv } from '@/lib/env'
 
 export async function GET(req: NextRequest) {
   const mint = req.nextUrl.searchParams.get('mint')?.trim()
   if (!mint) return NextResponse.json({ error: 'mint query param required' }, { status: 400 })
 
-  const key = process.env.BIRDEYE_API_KEY
+  const key = cleanEnv(process.env.BIRDEYE_API_KEY)
   if (!key) return NextResponse.json({ error: 'BIRDEYE_API_KEY not configured' }, { status: 503 })
 
   try {
