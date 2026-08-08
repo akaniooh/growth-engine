@@ -3,11 +3,10 @@
 const BIRDEYE_BASE = 'https://public-api.birdeye.so'
 
 // --- Throttle: serialize all outgoing Birdeye requests with a minimum gap.
-// Free/starter Birdeye tiers commonly cap requests per second. When multiple
-// routes (e.g. /api/analyze and /api/insights) fire near-simultaneously,
-// parallel calls can 429 even though the monthly credit limit isn't close
-// to exhausted. This queue makes sure we never fire two Birdeye requests
-// less than MIN_INTERVAL_MS apart.
+// Free/starter Birdeye tiers cap requests at 1 per second. This in-memory
+// queue enforces that gap within a single serverless instance — the common
+// case (one instance handling one user's sequential requests). It won't see
+// across separate concurrent instances, but for single-user use that's rare.
 const MIN_INTERVAL_MS = 1100
 let queue: Promise<unknown> = Promise.resolve()
 
