@@ -37,10 +37,12 @@ export default function Home() {
         let d = await fetchOnce()
         if (!d) return
 
-        // Retry once if Birdeye returned zeros (cold start / rate limit)
+        // Retry once if Birdeye returned zeros (cold start / rate limit).
+        // Wait well past Birdeye's ~1s burst window so the retry actually
+        // has a chance to succeed instead of colliding with the same limit.
         const hasZeroData = d.holders === 0 && d.price === '$0.00' && d.volume === '$0.00'
         if (hasZeroData) {
-          await new Promise((r) => setTimeout(r, 2500))
+          await new Promise((r) => setTimeout(r, 6000))
           const retry = await fetchOnce()
           if (retry) d = retry
         }

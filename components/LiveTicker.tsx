@@ -11,7 +11,7 @@ interface LiveTickerProps {
   onUpdate: (data: TokenData) => void
 }
 
-const INTERVAL_MS = 60_000 // 60 seconds (reduce noise)
+const INTERVAL_MS = 90_000 // 90 seconds, offset from Dashboard's 90s refresh below
 
 export function LiveTicker({ mint, symbol, onUpdate }: LiveTickerProps) {
   const [lastUpdated, setLastUpdated] = useState(new Date())
@@ -19,6 +19,7 @@ export function LiveTicker({ mint, symbol, onUpdate }: LiveTickerProps) {
   const [secondsAgo, setSecondsAgo]   = useState(0)
   const [flashKey, setFlashKey]       = useState(0)
   const mintRef = useRef(mint)
+  const intervalStartedRef = useRef<ReturnType<typeof setInterval> | null>(null)
   mintRef.current = mint  // always up to date without re-creating the callback
 
   const refresh = useCallback(async (silent = false) => {
@@ -41,10 +42,18 @@ export function LiveTicker({ mint, symbol, onUpdate }: LiveTickerProps) {
     finally { if (!silent) setPolling(false) }
   }, [onUpdate])  // stable — mintRef.current handles changes
 
-  // Auto-poll
+  // Auto-poll — offset by 45s from Dashboard's own 90s refresh cycle so
+  // the two independent pollers never fire in the same second.
   useEffect(() => {
-    const id = setInterval(() => refresh(true), INTERVAL_MS)
-    return () => clearInterval(id)
+    const startTimeout = setTimeout(() => {
+      refresh(true)
+      const id = setInterval(() => refresh(true), INTERVAL_MS)
+      intervalStartedRef.current = id
+    }, 45_000)
+    return () => {
+      clearTimeout(startTimeout)
+      if (intervalStartedRef.current) clearInterval(intervalStartedRef.current)
+    }
   }, [refresh])
 
   // Seconds counter
