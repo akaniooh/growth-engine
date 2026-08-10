@@ -187,10 +187,13 @@ function MemoryPreview() {
   )
 }
 
-const ROVER_CA = '9BvZ9N8bn6SASqy1SvWrthPZz5kfZe9WSZPRBmwpump'
+// TODO: set the live contract address here once available
+const ROVER_CA = ''
 
 function TokenBanner() {
   const [copied, setCopied] = useState(false)
+
+  if (!ROVER_CA) return null
 
   const handleCopy = async () => {
     try {
